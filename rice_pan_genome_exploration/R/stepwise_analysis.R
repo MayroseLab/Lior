@@ -6,15 +6,11 @@ get_stepwise_result <- function(pan_table, lines_order){
     # ...
     n_lines_vec <- c()
     n_genes_vec <- c()
+    result_pav_vec <- rep(F,nrow(pan_table))
     for (n_lines in 1:length(lines_order)){
-        lines_to_check <- lines_order[1:n_lines]
-        lines_pav_vecs <- pan_table[,lines_to_check]
-        if (n_lines == 1){
-            result_pav_vec <- lines_pav_vecs
-        }
-        else{      
-            result_pav_vec <- Reduce('|', lines_pav_vecs)
-        }
+        line_to_add <- lines_order[n_lines]
+        line_pav_vec <- pan_table[,line_to_add]
+        result_pav_vec <- result_pav_vec | line_pav_vec
         n_genes <- sum(result_pav_vec)
         n_lines_vec <- c(n_lines_vec,n_lines)
         n_genes_vec <- c(n_genes_vec,n_genes)
