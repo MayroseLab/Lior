@@ -69,6 +69,29 @@ def prep_job_for_qsub(job_name, commands_list, config_file, n_cpu = None):
     print('\n'.join(out_lines), file=fo)
   return(job_file_path)
 
+def get_job_exit_code(job_id):
+  """
+  Returns exit status (int) of job id.
+  Returns None if job is still running.
+  Returns False if job id is not found.
+  """
+  # check if job is currently running
+  try:
+    qstat_j_res = subprocess.check_output("qstat -j %s" % job_id, shell=True, stderr=subprocess.PIPE).decode('ascii')
+    return None
+  except:
+    # if it's not running, check if can get exit code
+    try:
+      job_stat = subprocess.check_output("qacct -j %s" % job_id, shell=True, stderr=subprocess.PIPE).decode('ascii')
+      exit_status_regex = re.compile(r'exit_status +(\d+)')
+      res = exit_status_regex.search(job_stat)
+      if res:
+        exit_status = res.group(1)
+        return exit_status
+    # if not, it means that job id doesn't exist
+    except subprocess.CalledProcessError:
+      return False
+
 def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, block = True, verbose = True):
   """
   Send a list of commands to queue as a single job.
@@ -80,26 +103,19 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   qsub_command = "qsub %s" % job_file_path
   qsub_res = subprocess.check_output(qsub_command, shell=True).decode('ascii')
   job_id = qsub_res.split()[2]
-  # wait until job is done or fails
-  exit_status_regex = re.compile(r'exit_status +(\d+)')
-  exit_status = None
   if not block:
     return job_id, exit_status
-  while not exit_status:
+  # wait until job is done or fails
+  exit_status = get_job_exit_code(job_id)
+  while exit_status is None:
     sleep(10)
-    try:
-      job_stat = subprocess.check_output("qacct -j %s" % job_id, shell=True, stderr=subprocess.PIPE).decode('ascii')
-    except subprocess.CalledProcessError:
-      continue
-    res = exit_status_regex.search(job_stat)
-    if res:
-      exit_status = res.group(1)
-      if verbose:
-        if exit_status == '0':
-          print("Job %s (job id %s) completed successfully" % (job_name, job_id) )
-        else:
-          print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
-      return job_id,exit_status
+    exit_status = get_job_exit_code(job_id)
+  if verbose:
+    if exit_status == '0':
+      print("Job %s (job id %s) completed successfully" % (job_name, job_id) )
+    else:
+      print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
+  return job_id, exit_status
 
 if __name__ == "__main__":
   test_commands = ['echo \"test started...\"', 'sleep 30', 'echo \"test complete\"']
