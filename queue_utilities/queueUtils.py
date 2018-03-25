@@ -1,3 +1,4 @@
+# Utility functions for interacting with the SGE queue system
 from __future__ import print_function
 import re
 from datetime import datetime
@@ -68,7 +69,7 @@ def prep_job_for_qsub(job_name, commands_list, config_file, n_cpu = None):
     print('\n'.join(out_lines), file=fo)
   return(job_file_path)
 
-def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, verbose = True):
+def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, block = True, verbose = True):
   """
   Send a list of commands to queue as a single job.
   Will block until job is complete and report exit status.
@@ -82,6 +83,8 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, v
   # wait until job is done or fails
   exit_status_regex = re.compile(r'exit_status +(\d+)')
   exit_status = None
+  if not block:
+    return job_id, exit_status
   while not exit_status:
     sleep(10)
     try:
@@ -96,7 +99,7 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, v
           print("Job %s (job id %s) completed successfully" % (job_name, job_id) )
         else:
           print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
-      return exit_status
+      return job_id,exit_status
 
 if __name__ == "__main__":
   test_commands = ['echo \"test started...\"', 'sleep 30', 'echo \"test complete\"']
