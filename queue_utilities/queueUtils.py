@@ -97,6 +97,9 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   Send a list of commands to queue as a single job.
   Will block until job is complete and report exit status.
   """
+  # convert single command to list, if given as string
+  if type(commands_list) == list:
+    commands_list = [commands_list]
   # prepare required files
   job_file_path = prep_job_for_qsub(job_name, commands_list, config_file, n_cpu)
   # send command and fetch job id
@@ -116,6 +119,19 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
     else:
       print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
   return job_id, exit_status
+
+def send_jobs_to_queue(jobs_dict, config_file, n_cpu = None):
+  """
+  Send a batch of jobs to queue, each with its own name and commands list.
+  Input is a dict with the format {job_id: [commands]}
+  Does not block and returns a dict {job_name: job id}
+  """
+  res_dict = {}
+  for job_name, commands in jobs_dict.items():
+    j = send_commands_to_queue(job_name, commands, config_file, n_cpu, block = False, verbose = False)
+    job_id = j[0]
+    res_dict[job_name] = job_id
+  return res_dict
 
 if __name__ == "__main__":
   test_commands = ['echo \"test started...\"', 'sleep 30', 'echo \"test complete\"']
