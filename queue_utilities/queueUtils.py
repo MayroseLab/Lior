@@ -106,6 +106,7 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   qsub_command = "qsub %s" % job_file_path
   qsub_res = subprocess.check_output(qsub_command, shell=True).decode('ascii')
   job_id = qsub_res.split()[2]
+  exit_status = None
   if not block:
     return job_id, exit_status
   # wait until job is done or fails
