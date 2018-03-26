@@ -108,6 +108,8 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   job_id = qsub_res.split()[2]
   exit_status = None
   if not block:
+    if verbose:
+      print("Job %s (job id %s) sent to queue" % (job_name, job_id) )
     return job_id, exit_status
   # wait until job is done or fails
   exit_status = get_job_exit_code(job_id)
