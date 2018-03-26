@@ -98,7 +98,7 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   Will block until job is complete and report exit status.
   """
   # convert single command to list, if given as string
-  if type(commands_list) == list:
+  if type(commands_list) == str:
     commands_list = [commands_list]
   # prepare required files
   job_file_path = prep_job_for_qsub(job_name, commands_list, config_file, n_cpu)
