@@ -30,8 +30,7 @@ def read_config(config_path):
 
 def prep_job_for_qsub(job_name, commands_list, config_file, n_cpu = None):
   """
-  Prepare a file to be sent to queue, given a list of commands
-  and the required queue configuration file.
+  Prepare a file to be sent to queue, given a list of commands.
   """
   # read config and assert all required config params are given
   config_dict = read_config(config_file)
@@ -39,35 +38,31 @@ def prep_job_for_qsub(job_name, commands_list, config_file, n_cpu = None):
   for param in required_params:
     assert (param in config_dict and config_dict[param]), "Missing or None value for param %s" % param
 
-  #prepare bash file with commands
+  #prepare q file
+  # SGE-related commands
+  sge_commands = []
+  sge_commands.append("#!/bin/bash")
+  sge_commands.append("#$ -N %s" % job_name)
+  sge_commands.append("#$ -S /bin/bash")
+  sge_commands.append("#$ -l %s" % config_dict['RESOURCE'])
+  if 'HOSTS' in config_dict:
+    sge_commands.append("#$ -l h=%s" % config_dict['HOSTS'])
+  sge_commands.append("#$ -e %s/$JOB_NAME.$JOB_ID.ER" % config_dict['OUT_DIR'])
+  sge_commands.append("#$ -o %s/$JOB_NAME.$JOB_ID.OU" % config_dict['OUT_DIR'])
+  sge_commands.append("#$ -q %s" % config_dict['QUEUE'])
+  if n_cpu:
+    sge_commands.append("#$ -pe mpi %s" % n_cpu)
+  # job commands
   commands_list.insert(0,'set -e')
   commands_list.insert(1,"echo JOB START")
   commands_list.append("echo JOB END")
+  # print commands
+  all_commands = sge_commands + commands_list
   time_stamp =  str(datetime.now()).replace(' ','_')
-  bash_file_path = "%s/%s_%s_commands.sh" % ( config_dict['OUT_DIR'], job_name, time_stamp )
-  with open(bash_file_path,'w') as fo:
-    print('\n'.join(commands_list), file=fo)
-
-  # prepare queue file
-  out_lines = []
-  out_lines.append("#!/bin/tcsh")
-  out_lines.append("#$ -N %s" % job_name)
-  out_lines.append("#$ -S /bin/tcsh")
-  out_lines.append("#$ -l %s" % config_dict['RESOURCE'])
-  if 'HOSTS' in config_dict:
-    out_lines.append("#$ -l h=%s" % config_dict['HOSTS'])
-  out_lines.append("#$ -e %s/$JOB_NAME.$JOB_ID.ER" % config_dict['OUT_DIR'])
-  out_lines.append("#$ -o %s/$JOB_NAME.$JOB_ID.OU" % config_dict['OUT_DIR'])
-  out_lines.append("#$ -q %s" % config_dict['QUEUE'])
-  if n_cpu:
-    out_lines.append("#$ -pe mpi %s" % n_cpu)
-  out_lines.append("bash %s" % bash_file_path)
-
-  # print to job file
-  job_file_path = "%s/%s_%s.q" %(config_dict['OUT_DIR'], job_name, time_stamp)
-  with open(job_file_path,'w') as fo:
-    print('\n'.join(out_lines), file=fo)
-  return(job_file_path)
+  q_file_path = "%s/%s_%s_commands.q" % ( config_dict['OUT_DIR'], job_name, time_stamp )
+  with open(q_file_path,'w') as fo:
+    print('\n'.join(all_commands), file=fo)
+  return(q_file_path)
 
 def get_job_exit_code(job_id):
   """
