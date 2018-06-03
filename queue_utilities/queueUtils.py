@@ -82,7 +82,7 @@ def get_job_exit_code(job_id):
       res = exit_status_regex.search(job_stat)
       if res:
         exit_status = res.group(1)
-        return exit_status
+        return int(exit_status)
     # if not, it means that job id doesn't exist
     except subprocess.CalledProcessError:
       return False
