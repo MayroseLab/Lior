@@ -114,7 +114,7 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
     sleep(10)
     exit_status = get_job_exit_code(job_id)
   if verbose:
-    if exit_status == '0':
+    if exit_status == 0:
       print("Job %s (job id %s) completed successfully" % (job_name, job_id) )
     else:
       print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
