@@ -4,6 +4,8 @@ import re
 from datetime import datetime
 import subprocess
 from time import sleep
+from IPython.lib import backgroundjobs as bg
+from IPython import get_ipython
 
 def read_config(config_path):
   """
@@ -130,6 +132,18 @@ def send_jobs_to_queue(jobs_dict, config_file, n_cpu = None):
     job_id = j[0]
     res_dict[job_name] = job_id
   return res_dict
+
+def run_script_in_bg(script_path,*args):
+  """
+  Not actually an interaction with the queue, but useful for running
+  python scripts that send commands to queue (such as pipelines) without
+  blocking the notebook.
+  """
+  def run_script(sp,args_tup):
+    magic_statement = 'run ' + sp + ' ' + ' '.join(args_tup)
+    get_ipython().magic(magic_statement)
+  jobs = bg.BackgroundJobManager()
+  jobs.new(run_script,script_path,args)
 
 if __name__ == "__main__":
   test_commands = ['echo \"test started...\"', 'sleep 30', 'echo \"test complete\"']
