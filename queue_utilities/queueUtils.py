@@ -113,11 +113,15 @@ def send_commands_to_queue(job_name, commands_list, config_file, n_cpu = None, b
   while exit_status is None:
     sleep(10)
     exit_status = get_job_exit_code(job_id)
+  sleep(10)	# this help avoid losing jobs in the 'twilight zone'
+  exit_status = get_job_exit_code(job_id)
   if verbose:
-    if exit_status == 0:
+    if type(exit_status) is int and exit_status == 0:
       print("Job %s (job id %s) completed successfully" % (job_name, job_id) )
+    elif type(exit_status) is int:
+      print("Job %s (job id %s) failed with exit code %s" % (job_name, job_id, exit_status) )
     else:
-      print("Job %s (job id %s) failed with exit error %s" % (job_name, job_id, exit_status) )
+      print("Can't get status for Job %s (job id %s). Something went wrong!" % (job_name, job_id))
   return job_id, exit_status
 
 def send_jobs_to_queue(jobs_dict, config_file, n_cpu = None):
