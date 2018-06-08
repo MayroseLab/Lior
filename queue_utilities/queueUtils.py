@@ -6,6 +6,7 @@ import subprocess
 from time import sleep
 from IPython.lib import backgroundjobs as bg
 from IPython import get_ipython
+import os
 
 def read_config(config_path):
   """
@@ -151,6 +152,6 @@ def run_script_in_bg(script_path,*args):
 
 if __name__ == "__main__":
   test_commands = ['echo \"test started...\"', 'sleep 30', 'echo \"test complete\"']
-  config_file = 'queue.conf'
+  config_file = os.path.dirname(os.path.realpath(__file__)) + '/queue.conf'
   job_name = 'queue_utils_test'
   send_commands_to_queue(job_name, test_commands, config_file)
