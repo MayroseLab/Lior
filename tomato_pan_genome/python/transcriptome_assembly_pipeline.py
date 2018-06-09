@@ -1,9 +1,8 @@
 """
 TO FIX:
 1. Does it still stop after each stage?
-2. add logging
 3. Why does it proceed to cleanup after BUSCO fails?
-5. Integrate Discasm
+5. Integrate STAR and Discasm
 """
 
 import sys
@@ -13,6 +12,11 @@ from queueUtils import send_commands_to_queue
 from shutil import rmtree
 import argparse
 import logging
+
+class FullPaths(argparse.Action):
+  """Expand user- and relative-paths"""
+  def __call__(self, parser, namespace, values, option_string=None):
+    setattr(namespace, self.dest, os.path.abspath(os.path.expanduser(values)))
 
 def prep_libs_lists(dir_path):
   """
@@ -203,14 +207,14 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('queue_conf')
+  parser.add_argument('queue_conf', action=FullPaths)
   parser.add_argument('data_set_name')
   parser.add_argument('sra_accessions')
-  parser.add_argument('download_target')
-  parser.add_argument('analysis_target')
-  parser.add_argument('log_file')
-  parser.add_argument('-a', '--reference_annotation', default=None)
-  parser.add_argument('-g', '--reference_genome', default=None)
+  parser.add_argument('download_target', action=FullPaths)
+  parser.add_argument('analysis_target', action=FullPaths)
+  parser.add_argument('log_file', action=FullPaths)
+  parser.add_argument('-a', '--reference_annotation', default=None, action=FullPaths)
+  parser.add_argument('-g', '--reference_genome', default=None, action=FullPaths)
   parser.add_argument('-f', '--forcie_overwrite', action='store_true', default=False)
   parser.add_argument('--first_command', default=1, type=int)
   parser.add_argument('--last_command', default=999, type=int)
