@@ -34,7 +34,7 @@ def prep_libs_lists(dir_path):
     r1 = "%s/%s" %(dir_path, r1)
     pos_r2 = r1.replace('_1','_2')
     if os.path.exists(pos_r2):
-      PE.append((r1,pos_r2))
+      PE.append([r1,pos_r2])
     else:
       SE.append(r1)
   return PE, SE
