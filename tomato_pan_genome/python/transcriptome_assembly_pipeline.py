@@ -62,14 +62,14 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     job_id, exit_status = send_commands_to_queue("fastq-dump_%s" % data_set_name, [download_command],queue_conf)
     if exit_status != 0:
       logging.error("Download failed. Terminating")
-      sys.exit()
+      sys.exit(1)
   else:
     logging.info("Skipping step...")
   # parse libs
   data_set_PE, data_set_SE = prep_libs_lists(download_target)
   if not data_set_PE and not data_set_SE:
     logging.error("No files found for data set %s. Terminating." % data_set_name)
-    sys.exit()
+    sys.exit(1)
   else:
     logging.info("%s PE and %s SE libraries detected." %(len(data_set_PE), len(data_set_SE)))
   
@@ -96,7 +96,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       job_id, exit_status = send_commands_to_queue("topHat_alignment_%s" % data_set_name, alignment_commsnds, queue_conf, n_cpu = 20)
       if exit_status != 0:
         logging.error("Alignment failed. Terminating.")
-        sys.exit()
+        sys.exit(1)
     else:
       logging.info("Skipping step...")
   
@@ -134,7 +134,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       job_id, exit_status = send_commands_to_queue("%s_concat_reads",concat_commands,queue_conf)
       if exit_status != 0:
         logging.error("Failed to concatenate reads. Terminating")
-        sys.exit()
+        sys.exit(1)
     in_fastq_str = "--left %s --right %s" %(download_target + '/concat_R1.fq', download_target + '/concat_R2.fq')   
   
   if reference_genome:
@@ -151,7 +151,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     job_id, exit_status = send_commands_to_queue("%s_transcriptome_assembly" % data_set_name, trinity_assembly_commands, queue_conf, n_cpu = 20)
     if exit_status != 0:
       logging.error("Failed in transcriptome assembly. Terminating.")
-      sys.exit()
+      sys.exit(1)
   else:
     logging.info("Skipping step...")
     
@@ -165,7 +165,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     job_id, exit_status = send_commands_to_queue("%s_BUSCO" % data_set_name, busco_commands, queue_conf, n_cpu = 20)
     if exit_status != 0:
       logging.error("Failed to run BUSCO. Terminating")
-      sys.exit()
+      sys.exit(1)
   else:
     logging.info("Skipping step...")
   
