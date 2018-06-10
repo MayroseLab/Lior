@@ -21,7 +21,7 @@ class FullPaths(argparse.Action):
 def prep_libs_lists(dir_path):
   """
   Parses file names in dir and returns a tuple with two elements:
-  0. a list of tuples of PE files
+  0. a list of lists of PE files
   1. a list of SE files
   """
   PE = []
@@ -117,20 +117,11 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     in_fastq_str = "--single " + ','.join(data_set_SE)
   # mixed PE and SE - need to unzip and concat
   else:
-    logging.info("Handling mixed PE and sE libraries")
     concat_commands = []
-    for i in range(len(data_set_SE)):
-      if data_set_SE[i].endswith('.gz'):
-        concat_commands.append('gzip -d %s' % data_set_SE[i])
-        data_set_SE[i] = data_set_SE[i][:-3]  # remove .gz
-    for i in range(len(data_set_PE)):
-      for j in range(len(data_set_PE[i])):
-        if data_set_PE[i][j].endswith('.gz'):
-          concat_commands.append('gzip -d %s' % data_set_PE[i][j])
-          data_set_PE[i][j] = data_set_PE[i][j][:-3]  # remove .gz
-    concat_commands.append("cat %s > %s" %(' '.join([l[0] for l in data_set_PE] + data_set_SE), download_target + '/concat_R1.fq'))
-    concat_commands.append("cat %s > %s" %(' '.join([l[1] for l in data_set_PE]), download_target + '/concat_R2.fq'))
+    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[0] for l in data_set_PE] + data_set_SE), download_target + '/concat_R1.fq'))
+    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[1] for l in data_set_PE]), download_target + '/concat_R2.fq'))
     if first_command <= 3 and last_command >= 3:
+      logging.info("Handling mixed PE and sE libraries")
       job_id, exit_status = send_commands_to_queue("%s_concat_reads",concat_commands,queue_conf)
       if exit_status != 0:
         logging.error("Failed to concatenate reads. Terminating")
