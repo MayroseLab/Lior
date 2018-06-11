@@ -103,12 +103,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   
   ### 3 - transcriptome assembly
   logging.info("~~~ STEP 3 - transcriptome assembly ~~~")
-  trinity_assembly_commands = ["module unload R/R301 gcc/gcc480 python/python-3.3.0",
-                 "module load salomon/salmon-0.9.1 perl/perl-5.20.1-threaded Trinity/Trinity-v2.6.6 zlib/zlib129 java/java-1.8 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 jellyfish/jellyfish-2.2.7 python/anaconda3-5.0.0",
-                 "module load perl/perl-5.20.1-threaded zlib/zlib129 jellyfish/jellyfish-2.2.7 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 salomon/salmon-0.9.1",
-                 "module load Trinity/Trinity-v2.6.6", "module load java/java-1.8",
-                 "module load jellyfish", "module load bowtie2/bowtie2-2.3.4.1",
-                 "export PATH=/groups/itay_mayrose/liorglic/Salmon-latest_linux_x86_64/bin:/groups/itay_mayrose/liorglic/samtools-1.7/bin:/share/apps/Jellyfish-2.2.9/bin:$PATH"]
+  trinity_assembly_commands = ['bowtie2/bowtie2-2.3.4.1', 'gcc/gcc620', 'htslib/htslib-1.3.2', 'java/java-1.8', 'jellyfish/jellyfish-2.2.7', 'perl/perl-5.20.1-threaded', 'python/anaconda3-5.0.0', 'salomon/salmon-0.9.1', 'samtools/samtools-1.3.1', 'Trinity/Trinity-v2.6.6', 'zlib/zlib129']
   trinity_dir = "%s/trinity_assembly" % analysis_target
   # all paired end
   if data_set_PE and not data_set_SE:
@@ -169,21 +164,21 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     try:
       # clean reads
       rmtree(download_target)
-    except:
-      logging.warning("Failed to clean reads")
+    except Exception as e:
+      logging.warning("Faiiled to clean reads - %s" % str(e))
     try:
       # clean alignment dir
       if reference_genome:
         rmtree(topHat_dir)
-    except:
-      logging.warning("Failed to clean alignment dir")
+    except Exception as e:
+      logging.warning("Failed to clean alignment dir - %s" % str(e))
     try:
       # clean assembly dir - delete everything except final output
       for f in os.listdir(trinity_dir):
         if not f.startswith('Trinity') or not f.endswith('.fasta'):
           os.remove("%s/%s" %(trinity_dir,f))
-    except:
-      logging.warning("Failed to clean seembly dir")
+    except Exception as e:
+      logging.warning("Failed to clean assembly dir - %s" % str(e))
     try:
       # clean BUSCO dir - remove everything except summary files
       busco_dir = "%s/run_BUSCO/" % analysis_target
@@ -193,8 +188,8 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
             rmtree("%s/%s" %(busco_dir,f))
           else:
             os.remove("%s/%s" %(busco_dir,f))
-    except:
-      logging.warning("Failed to clean BUSCO dir")
+    except Exception as e:
+      logging.warning("Failed to clean BUSCO dir - %s" % str(e))
   else:
     logging.info("Skipping step...")
   
