@@ -53,6 +53,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   """
   
   """
+  logging.info("=== TRANSCRIPTOME ASSEMBLY PIPELINE STARTED ===")
   ### 1 - download_data
   logging.info("~~~ STEP 1 - download data ~~~")
   download_command = "%s --gzip --defline-seq '@$sn[_$rn]/$ri' --skip-technical --readids --dumpbase --split-files --clip -O %s %s" % (FASTQ_DUMP_PATH, download_target, sra_accessions)
@@ -118,15 +119,16 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   # mixed PE and SE - need to unzip and concat
   else:
     concat_commands = []
-    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[0] for l in data_set_PE] + data_set_SE), download_target + '/concat_R1.fq'))
-    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[1] for l in data_set_PE]), download_target + '/concat_R2.fq'))
+    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[0] for l in data_set_PE] + data_set_SE), download_target + '/concat_R1.fq.gz'))
+    concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[1] for l in data_set_PE]), download_target + '/concat_R2.fq.gz'))
     if first_command <= 3 and last_command >= 3:
       logging.info("Handling mixed PE and sE libraries")
-      job_id, exit_status = send_commands_to_queue("%s_concat_reads",concat_commands,queue_conf)
+      #job_id, exit_status = send_commands_to_queue("%s_concat_reads" % data_set_name,concat_commands,queue_conf)
+      exit_status = 0
       if exit_status != 0:
         logging.error("Failed to concatenate reads. Terminating")
         sys.exit(1)
-    in_fastq_str = "--left %s --right %s" %(download_target + '/concat_R1.fq', download_target + '/concat_R2.fq')   
+    in_fastq_str = "--left %s --right %s" %(download_target + '/concat_R1.fq.gz', download_target + '/concat_R2.fq.gz')   
   
   if reference_genome:
     sorted_bam = "%s/accepted_hits.bam.sort.bam" % topHat_dir
@@ -195,6 +197,8 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       logging.warning("Failed to clean BUSCO dir")
   else:
     logging.info("Skipping step...")
+  
+  logging.info("i=== TRANSCRIPTOME ASSEMBLY PIPELINE COMPLETED SUCCESSFULLY ===")
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
@@ -219,6 +223,6 @@ if __name__ == "__main__":
 
   queue_conf = args.queue_conf
   logging.basicConfig(filename=args.log_file, level=logging.INFO, format='%(asctime)s: %(levelname)s: %(message)s')
-  logging.info("Pipeline script command:\n %s" % ' '.join(sys.argv))
+  logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
 
   transcriptome_assembly_pipeline(args.data_set_name, args.sra_accessions, args.download_target, args.analysis_target,args.reference_annotation,args.reference_genome,args.forcie_overwrite,args.first_command,args.last_command)
