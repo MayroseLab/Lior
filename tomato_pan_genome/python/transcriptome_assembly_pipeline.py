@@ -18,6 +18,19 @@ class FullPaths(argparse.Action):
   def __call__(self, parser, namespace, values, option_string=None):
     setattr(namespace, self.dest, os.path.abspath(os.path.expanduser(values)))
 
+class StreamToLogger(object):
+  """
+  Fake file-like stream object that redirects writes to a logger instance.
+  """
+  def __init__(self, logger, log_level=logging.INFO):
+    self.logger = logger
+    self.log_level = log_level
+    self.linebuf = ''
+
+  def write(self, buf):
+    for line in buf.rstrip().splitlines():
+      self.logger.log(self.log_level, line.rstrip())
+
 def prep_libs_lists(dir_path):
   """
   Parses file names in dir and returns a tuple with two elements:
@@ -103,7 +116,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   
   ### 3 - transcriptome assembly
   logging.info("~~~ STEP 3 - transcriptome assembly ~~~")
-  trinity_assembly_commands = ['bowtie2/bowtie2-2.3.4.1', 'gcc/gcc620', 'htslib/htslib-1.3.2', 'java/java-1.8', 'jellyfish/jellyfish-2.2.7', 'perl/perl-5.20.1-threaded', 'python/anaconda3-5.0.0', 'salomon/salmon-0.9.1', 'samtools/samtools-1.3.1', 'Trinity/Trinity-v2.6.6', 'zlib/zlib129']
+  trinity_assembly_commands = ['module load bowtie2/bowtie2-2.3.4.1', 'module load gcc/gcc620', 'module load htslib/htslib-1.3.2', 'module load java/java-1.8', 'module load jellyfish/jellyfish-2.2.7', 'module load perl/perl-5.20.1-threaded', 'module load python/anaconda3-5.0.0', 'module load salomon/salmon-0.9.1', 'module load samtools/samtools-1.3.1', 'module load Trinity/Trinity-v2.6.6', 'module load zlib/zlib129'] 
   trinity_dir = "%s/trinity_assembly" % analysis_target
   # all paired end
   if data_set_PE and not data_set_SE:
@@ -118,7 +131,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     concat_commands.append("zcat -f %s | gzip > %s" %( ' '.join([l[1] for l in data_set_PE]), download_target + '/concat_R2.fq.gz'))
     if first_command <= 3 and last_command >= 3:
       logging.info("Handling mixed PE and sE libraries")
-      #job_id, exit_status = send_commands_to_queue("%s_concat_reads" % data_set_name,concat_commands,queue_conf)
+      job_id, exit_status = send_commands_to_queue("%s_concat_reads" % data_set_name,concat_commands,queue_conf)
       exit_status = 0
       if exit_status != 0:
         logging.error("Failed to concatenate reads. Terminating")
@@ -217,7 +230,14 @@ if __name__ == "__main__":
   busco_lineage_path = "/groups/itay_mayrose/liorglic/software/busco/embryophyta_odb9/"
 
   queue_conf = args.queue_conf
-  logging.basicConfig(filename=args.log_file, level=logging.INFO, format='%(asctime)s: %(levelname)s: %(message)s')
-  logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
+  # set logger, including recirect STDOUT and STDERR to log
+  logging.basicConfig(filename=args.log_file, level=logging.INFO, format='%(asctime)s: %(name)s:%(levelname)s: %(message)s')
+  stdout_logger = logging.getLogger('STDOUT')  
+  sl = StreamToLogger(stdout_logger, logging.INFO)
+  sys.stdout = sl
+  stderr_logger = logging.getLogger('STDERR')
+  sl = StreamToLogger(stderr_logger, logging.ERROR)
+  sys.stderr = sl
 
+  logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
   transcriptome_assembly_pipeline(args.data_set_name, args.sra_accessions, args.download_target, args.analysis_target,args.reference_annotation,args.reference_genome,args.forcie_overwrite,args.first_command,args.last_command)
