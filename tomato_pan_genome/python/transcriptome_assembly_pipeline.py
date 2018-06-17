@@ -1,10 +1,3 @@
-"""
-TO FIX:
-1. Does it still stop after each stage?
-3. Why does it proceed to cleanup after BUSCO fails?
-5. Integrate STAR and Discasm
-"""
-
 import sys
 import os
 sys.path.append("../../queue_utilities/")
@@ -141,7 +134,8 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   ### 3 - transcriptome assembly
   logging.info("~~~ STEP 3 - transcriptome assembly ~~~")
   trinity_assembly_commands = ['module unload R/R301 gcc/gcc480 python/python-3.3.0','module load salomon/salmon-0.9.1 perl/perl-5.20.1-threaded Trinity/Trinity-v2.6.6 zlib/zlib129 java/java-1.8 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 jellyfish/jellyfish-2.2.7 python/anaconda3-5.0.0','module load perl/perl-5.20.1-threaded zlib/zlib129 jellyfish/jellyfish-2.2.7 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 salomon/salmon-0.9.1','module load Trinity/Trinity-v2.6.6','module load java/java-1.8','module load jellyfish','module load bowtie2/bowtie2-2.3.4.1','export PATH=/groups/itay_mayrose/liorglic/Salmon-latest_linux_x86_64/bin:/groups/itay_mayrose/liorglic/samtools-1.7/bin:/share/apps/Jellyfish-2.2.7/bin:$PATH' ]
-  trinity_dir = "%s/trinity_assembly" % analysis_target
+  trinity_dir_mapped = "%s/trinity_assembly_mapped" % analysis_target
+  trinity_dir_unmapped = "%s/trinity_assembly_unmapped" % analysis_target
   # all paired end
   if data_set_PE and not data_set_SE:
     in_fastq_str = "--left " + ','.join([l[0] for l in data_set_PE]) + " --right " + ','.join([l[1] for l in data_set_PE])  
@@ -163,13 +157,21 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     in_fastq_str = "--left %s --right %s" %(download_target + '/concat_R1.fq.gz', download_target + '/concat_R2.fq.gz')   
   
   if reference_genome:
-    sorted_bam = "%s/accepted_hits.bam.sort.bam" % topHat_dir
-    assembly_command = "Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G --genome_guided_max_intron 5000 --genome_guided_bam %s" %(in_fastq_str, trinity_dir, sorted_bam)
-    trinity_out = "%s/Trinity-GG.fasta" % trinity_dir
+    # assembly of mapped reads, using reference
+    trinity_assembly_commands.append("Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G --genome_guided_max_intron 5000 --genome_guided_bam %s" %(in_fastq_str, trinity_dir_mapped, final_aligned_bam))
+    trinity_out = "%s/Trinity-GG.fasta" % trinity_dir_mapped
+    # assembly of unmapped reads
+    if data_set_PE:
+      in_fastq_str = "--left %s --right %s" %(final_unmapped_fq1, final_unmapped_fq2)
+    else:
+      in_fastq_str = "--left %s" %(final_unmapped_fq1)
+    trinity_assembly_commands.append("Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G" %(in_fastq_str, trinity_dir_unmapped))
+    # concat transcripts from mapped and unmapped runs
+    trinity_out = "%s/Trinity-combined.fasta" % analysis_target
+    trinity_assembly_commands.append("cat %s/Trinity-GG.fasta %s/Trinity.fasta > %s" %(trinity_dir_mapped, trinity_dir_unmapped, trinity_out))
   else:
-    assembly_command = "Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G" %(in_fastq_str, trinity_dir)
-    trinity_out = "%s/Trinity.fasta" % trinity_dir
-  trinity_assembly_commands.append(assembly_command)
+    trinity_assembly_commands.append("Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G" %(in_fastq_str, trinity_dir_unmapped))
+    trinity_out = "%s/Trinity.fasta" % trinity_dir_unmapped
   if first_command <= 3 and last_command >= 3:
     logging.info("Starting assembly")
     os.mkdir(trinity_dir)
