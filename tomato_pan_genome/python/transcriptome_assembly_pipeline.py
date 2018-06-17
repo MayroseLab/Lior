@@ -88,26 +88,50 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     logging.info("%s PE and %s SE libraries detected." %(len(data_set_PE), len(data_set_SE)))
   
   ### 2 - alignment to reference annotation
-  logging.info("~~~ STEP 2 - alignment to reference annotation ~~~")
+  logging.info("~~~ STEP 2 - alignment to reference genome ~~~")
   if reference_genome:
-    topHat_dir = "%s/topHat_alignment" % analysis_target
-    genome_index_base = os.path.splitext(reference_genome)[0]
-    alignment_commsnds = ["module load python/python-2.7.6",
-                "export PATH=/share/apps/bowtie112/bin:$PATH"]
-    in_fastq_str = ','.join([l[0] for l in data_set_PE] + data_set_SE) + ' ' + ','.join([l[1] for l in data_set_PE])
-    if reference_annotation:
-      topHat_command = "%s -p 20 -i 20 -I 5000 -G %s -o %s %s %s" % (TOPHAT_EXEC_PATH, reference_annotation, topHat_dir, genome_index_base, in_fastq_str)
-    else:
-      topHat_command = "%s -p 20 -i 20 -I 5000 -o %s %s %s" % (TOPHAT_EXEC_PATH, topHat_dir, genome_index_base, in_fastq_str)
-    alignment_commsnds.append(topHat_command)
-    # sort result
-    sort_bam_command = "%s sort %s/accepted_hits.bam %s/accepted_hits.bam.sort" %(SAMTOOLS_EXEC_PATH, topHat_dir, topHat_dir)
-    alignment_commsnds.append(sort_bam_command)
+    STAR_dir = "%s/STAR_alignment" % analysis_target
+    alignment_commsnds = ["module load gcc/gcc620 perl/perl518 STAR/STAR-2.6.0a"]
+    # SE alignment
+    if data_set_SE:
+      in_fastq_str = ','.join(data_set_SE)
+      alignment_commsnds.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fiastq_str, STAR_dir ) )
+    se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
+    se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
+    se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
+    alignment_commsnds.append( "sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq) )
+    # PE alignment
+    if data_set_PE:
+      in_fastq_str = ','.join([l[0] for l in data_set_PE]) + ' ' + ','.join([l[1] for l in data_set_PE])
+      alignment_commsnds.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/PE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fiastq_str, STAR_dir ))
+      pe_mapped_bam = "%s/PE_Aligned.sortedByCoord.out.bam" % STAR_dir
+      pe_unmapped_out1 = "%s/PE_Unmapped.out.mate1"
+      pe_unmapped_out2 = "%s/PE_Unmapped.out.mate2"
+      pe_unmapped_fq1 = "%s/PE_Unmapped_R1.fq" % STAR_dir
+      pe_unmapped_fq2 = "%s/PE_Unmapped_R2.fq" % STAR_dir     
+      alignment_commands.append("sed 's/\t.*/\/1/' %s > %s" %(pe_unmapped_out1, pe_unmapped_fq1) )
+      alignment_commands.append("sed 's/\t.*/\/2/' %s > %s" %(pe_unmapped_out2, pe_unmapped_fq2) )
+    # define final outputs and combine SE and PE results, if needed
+    if data_set_SE and not data_set_PE:
+      final_aligned_bam = se_mapped_bam 
+      final_unmapped_fq1 = se_unmapped_fq
+      final_unmapped_fq2 = None
+    elif data_set_PE and not data_set_SE:
+      final_aligned_bam = pe_mapped_bam 
+      final_unmapped_fq1 = pe_unmapped_fq1
+      final_unmapped_fq2 = pe_unmapped_fq2
+    elif data_set_PE and data_set_SE:
+      final_aligned_bam = "%s/combined_Aligned.sortedByCoord.out.bam"
+      final_unmapped_fq1 = "%s/combined_Unmapped_R1.fq"
+      final_unmapped_fq2 = pe_unmapped_fq2
+      alignment_commands.append("%s merge %s %s %s" %(SAMTOOLS_EXEC_PATH, final_aligned_bam, pe_mapped_bam, se_mapped_bam) )
+      alignment_commands.append("cat %s %s > %s" %(pe_unmapped_fq1, se_unmapped_fq, final_unmapped_fq1) )
+
     if first_command <= 2 and last_command >= 2:
       logging.info("Started alignment")
       mkdir_overwrite(analysis_target, overwrite_mode=force_overwrite)
-      mkdir_overwrite(topHat_dir, overwrite_mode=force_overwrite)
-      job_id, exit_status = send_commands_to_queue("topHat_alignment_%s" % data_set_name, alignment_commsnds, queue_conf, n_cpu = 20)
+      mkdir_overwrite(STAR_dir, overwrite_mode=force_overwrite)
+      job_id, exit_status = send_commands_to_queue("STAR_alignment_%s" % data_set_name, alignment_commsnds, queue_conf, n_cpu = 5)
       if exit_status != 0:
         logging.error("Alignment failed. Terminating.")
         sys.exit(1)
@@ -116,7 +140,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   
   ### 3 - transcriptome assembly
   logging.info("~~~ STEP 3 - transcriptome assembly ~~~")
-  trinity_assembly_commands = ['module load bowtie2/bowtie2-2.3.4.1', 'module load gcc/gcc620', 'module load htslib/htslib-1.3.2', 'module load java/java-1.8', 'module load jellyfish/jellyfish-2.2.7', 'module load perl/perl-5.20.1-threaded', 'module load python/anaconda3-5.0.0', 'module load salomon/salmon-0.9.1', 'module load samtools/samtools-1.3.1', 'module load Trinity/Trinity-v2.6.6', 'module load zlib/zlib129'] 
+  trinity_assembly_commands = ['module unload R/R301 gcc/gcc480 python/python-3.3.0','module load salomon/salmon-0.9.1 perl/perl-5.20.1-threaded Trinity/Trinity-v2.6.6 zlib/zlib129 java/java-1.8 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 jellyfish/jellyfish-2.2.7 python/anaconda3-5.0.0','module load perl/perl-5.20.1-threaded zlib/zlib129 jellyfish/jellyfish-2.2.7 gcc/gcc620 samtools/samtools-1.3.1 htslib/htslib-1.3.2 salomon/salmon-0.9.1','module load Trinity/Trinity-v2.6.6','module load java/java-1.8','module load jellyfish','module load bowtie2/bowtie2-2.3.4.1','export PATH=/groups/itay_mayrose/liorglic/Salmon-latest_linux_x86_64/bin:/groups/itay_mayrose/liorglic/samtools-1.7/bin:/share/apps/Jellyfish-2.2.7/bin:$PATH' ]
   trinity_dir = "%s/trinity_assembly" % analysis_target
   # all paired end
   if data_set_PE and not data_set_SE:
@@ -224,7 +248,6 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   FASTQ_DUMP_PATH = "/groups/itay_mayrose/liorglic/sratoolkit.2.9.0-ubuntu64/bin/fastq-dump"
-  TOPHAT_EXEC_PATH = "/share/apps/tophat210/bin/tophat"
   SAMTOOLS_EXEC_PATH = "/share/apps/samtools12/bin/samtools"
   busco_script_path = "/groups/itay_mayrose/liorglic/software/busco/scripts/run_BUSCO.py"
   busco_lineage_path = "/groups/itay_mayrose/liorglic/software/busco/embryophyta_odb9/"
