@@ -72,6 +72,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       sys.exit(1)
   else:
     logging.info("Skipping step...")
+  
   # parse libs
   data_set_PE, data_set_SE = prep_libs_lists(download_target)
   if not data_set_PE and not data_set_SE:
@@ -130,6 +131,16 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
         sys.exit(1)
     else:
       logging.info("Skipping step...")
+    # ensure final results exist
+    if last_command >= 2:
+      missing_outputs = False
+      final_out_files = (final_aligned_bam, final_unmapped_fq1, final_unmapped_fq2)
+      for f in final_out_files:
+        if f and not os.path.exists(f):
+          logging.error("Expected output file %s not found. Terminating." % f)
+          missing_outputs = True
+      if missing_outputs:
+        sys.exit(1)
   
   ### 3 - transcriptome assembly
   logging.info("~~~ STEP 3 - transcriptome assembly ~~~")
@@ -183,7 +194,11 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       sys.exit(1)
   else:
     logging.info("Skipping step...")
-    
+  # ensure output was created
+  if last_command >= 3 and not os.path.exists(trinity_out):
+    logging.error("Expected output file %s not found. Terminating." % trinity_out)
+    sys.exit(1)
+  
   ### 4 - BUSCO
   logging.info("~~~ STEP 4 - BUSCO ~~~")
   if first_command <= 4 and last_command >= 4:
@@ -197,6 +212,11 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       sys.exit(1)
   else:
     logging.info("Skipping step...")
+  # ensure final output exists
+  busco_out = "%s/run_BUSCO/short_summary_BUSCO.txt"
+  if last_command >= 4 and not os.path.exists(busco_out):
+    logging.error("Expected output %s not found. Terminating." % busco_out)
+    sys.exit(1)
   
   ### 5 - cleanup
   logging.info("~~~ STEP 5 - Cleanup ~~~")
