@@ -84,22 +84,22 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
   logging.info("~~~ STEP 2 - alignment to reference genome ~~~")
   if reference_genome:
     STAR_dir = "%s/STAR_alignment" % analysis_target
-    alignment_commsnds = ["module load gcc/gcc620 perl/perl518 STAR/STAR-2.6.0a"]
+    alignment_commands = ["module load gcc/gcc620 perl/perl518 STAR/STAR-2.6.0a"]
     # SE alignment
     if data_set_SE:
       in_fastq_str = ','.join(data_set_SE)
-      alignment_commsnds.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fiastq_str, STAR_dir ) )
+      alignment_commands.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fastq_str, STAR_dir ) )
     se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
     se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
     se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
-    alignment_commsnds.append( "sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq) )
+    alignment_commands.append( "sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq) )
     # PE alignment
     if data_set_PE:
       in_fastq_str = ','.join([l[0] for l in data_set_PE]) + ' ' + ','.join([l[1] for l in data_set_PE])
-      alignment_commsnds.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/PE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fiastq_str, STAR_dir ))
+      alignment_commands.append("STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/PE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (reference_genome, in_fastq_str, STAR_dir ))
       pe_mapped_bam = "%s/PE_Aligned.sortedByCoord.out.bam" % STAR_dir
-      pe_unmapped_out1 = "%s/PE_Unmapped.out.mate1"
-      pe_unmapped_out2 = "%s/PE_Unmapped.out.mate2"
+      pe_unmapped_out1 = "%s/PE_Unmapped.out.mate1" % STAR_dir
+      pe_unmapped_out2 = "%s/PE_Unmapped.out.mate2" % STAR_dir
       pe_unmapped_fq1 = "%s/PE_Unmapped_R1.fq" % STAR_dir
       pe_unmapped_fq2 = "%s/PE_Unmapped_R2.fq" % STAR_dir     
       alignment_commands.append("sed 's/\t.*/\/1/' %s > %s" %(pe_unmapped_out1, pe_unmapped_fq1) )
@@ -114,8 +114,8 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       final_unmapped_fq1 = pe_unmapped_fq1
       final_unmapped_fq2 = pe_unmapped_fq2
     elif data_set_PE and data_set_SE:
-      final_aligned_bam = "%s/combined_Aligned.sortedByCoord.out.bam"
-      final_unmapped_fq1 = "%s/combined_Unmapped_R1.fq"
+      final_aligned_bam = "%s/combined_Aligned.sortedByCoord.out.bam" % STAR_dir
+      final_unmapped_fq1 = "%s/combined_Unmapped_R1.fq" % STAR_dir
       final_unmapped_fq2 = pe_unmapped_fq2
       alignment_commands.append("%s merge %s %s %s" %(SAMTOOLS_EXEC_PATH, final_aligned_bam, pe_mapped_bam, se_mapped_bam) )
       alignment_commands.append("cat %s %s > %s" %(pe_unmapped_fq1, se_unmapped_fq, final_unmapped_fq1) )
@@ -124,7 +124,7 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
       logging.info("Started alignment")
       mkdir_overwrite(analysis_target, overwrite_mode=force_overwrite)
       mkdir_overwrite(STAR_dir, overwrite_mode=force_overwrite)
-      job_id, exit_status = send_commands_to_queue("STAR_alignment_%s" % data_set_name, alignment_commsnds, queue_conf, n_cpu = 5)
+      job_id, exit_status = send_commands_to_queue("STAR_alignment_%s" % data_set_name, alignment_commands, queue_conf, n_cpu = 5)
       if exit_status != 0:
         logging.error("Alignment failed. Terminating.")
         sys.exit(1)
@@ -174,7 +174,9 @@ def transcriptome_assembly_pipeline(data_set_name,sra_accessions,download_target
     trinity_out = "%s/Trinity.fasta" % trinity_dir_unmapped
   if first_command <= 3 and last_command >= 3:
     logging.info("Starting assembly")
-    os.mkdir(trinity_dir)
+    if data_set_PE:
+      os.mkdir(trinity_dir_mapped)
+    os.mkdir(trinity_dir_unmapped)
     job_id, exit_status = send_commands_to_queue("%s_transcriptome_assembly" % data_set_name, trinity_assembly_commands, queue_conf, n_cpu = 20)
     if exit_status != 0:
       logging.error("Failed in transcriptome assembly. Terminating.")
