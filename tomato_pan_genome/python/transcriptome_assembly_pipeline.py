@@ -106,7 +106,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
     se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
     se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
-    alignment_commands.append("sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq))
+    alignment_commands.append(r"sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq))
     # PE alignment
     if data_set_PE:
       in_fastq_str = ','.join([l[0] for l in data_set_PE]) + ' ' + ','.join([l[1] for l in data_set_PE])
@@ -118,8 +118,8 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
       pe_unmapped_out2 = "%s/PE_Unmapped.out.mate2" % STAR_dir
       pe_unmapped_fq1 = "%s/PE_Unmapped_R1.fq" % STAR_dir
       pe_unmapped_fq2 = "%s/PE_Unmapped_R2.fq" % STAR_dir
-      alignment_commands.append("sed 's/\t.*/\/1/' %s > %s" % (pe_unmapped_out1, pe_unmapped_fq1))
-      alignment_commands.append("sed 's/\t.*/\/2/' %s > %s" % (pe_unmapped_out2, pe_unmapped_fq2))
+      alignment_commands.append(r"sed 's/\t.*/\/1/' %s > %s" % (pe_unmapped_out1, pe_unmapped_fq1))
+      alignment_commands.append(r"sed 's/\t.*/\/2/' %s > %s" % (pe_unmapped_out2, pe_unmapped_fq2))
     # define final outputs and combine SE and PE results, if needed
     if data_set_SE and not data_set_PE:
       final_aligned_bam = se_mapped_bam
@@ -249,7 +249,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
   else:
     logging.info("Skipping step...")
   # ensure final output exists
-  busco_out = "%s/run_BUSCO/short_summary_BUSCO.txt"
+  busco_out = "%s/run_BUSCO/short_summary_BUSCO.txt" % analysis_target
   if last_command >= 4 and not os.path.exists(busco_out):
     logging.error("Expected output %s not found. Terminating." % busco_out)
     sys.exit(1)
