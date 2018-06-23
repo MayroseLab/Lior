@@ -62,7 +62,6 @@ def mkdir_overwrite(path, overwrite_mode):
     else:
       raise OSError
 
-
 def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_target, analysis_target,
                                     reference_annotation=None, reference_genome=None, force_overwrite=False,
                                     first_command=1, last_command=999):
@@ -198,7 +197,6 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     trinity_assembly_commands.append(
       "Trinity --seqType fq %s --output %s --CPU 20 --max_memory 50G --genome_guided_max_intron 5000 --genome_guided_bam %s" % (
         in_fastq_str, trinity_dir_mapped, final_aligned_bam))
-    trinity_out = "%s/Trinity-GG.fasta" % trinity_dir_mapped
     # assembly of unmapped reads
     if data_set_PE:
       in_fastq_str = "--left %s --right %s" % (final_unmapped_fq1, final_unmapped_fq2)
@@ -240,7 +238,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
                       "export AUGUSTUS_CONFIG_PATH=\"/groups/itay_mayrose/liorglic/software/busco/augustus_config\"",
                       "module load python/python-3.3.0"]
     busco_commands.append("cd %s" % analysis_target)
-    busco_commands.append("python %s --in %s --out BUSCO --lineage_path %s --mode transcriptome --cpu 20" % (
+    busco_commands.append("python %s --in %s --out BUSCO_unmapped --lineage_path %s --mode transcriptome --cpu 20" % (
       busco_script_path, trinity_out, busco_lineage_path))
     job_id, exit_status = send_commands_to_queue("%s_BUSCO" % data_set_name, busco_commands, queue_conf, n_cpu=20)
     if exit_status != 0:
@@ -254,9 +252,26 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     logging.error("Expected output %s not found. Terminating." % busco_out)
     sys.exit(1)
 
-  ### 5 - cleanup
-  logging.info("~~~ STEP 5 - Cleanup ~~~")
+  ### 5 - Collect stats
+  logging.info("~~~ STEP 5 - Collect stats ~~~")
   if first_command <= 5 and last_command >= 5:
+    logging.info("Starting to collect stats")
+    stats_out = "%s/transcriptome_stats.tsv" % analysis_target
+    collect_stats_commands = ["python %s/get_genome_stats.py %s > %s" %(os.path.dirname(os.path.realpath(__file__)), trinity_out, stats_out)]
+    job_id, exit_status = send_commands_to_queue("%s_collect_stats" % data_set_name, collect_stats_commands, queue_conf)
+    if exit_status != 0:
+      logging.error("Failed to collect stats. Terminating")
+      sys.exit(1)
+  else:
+    logging.info("Skipping step...")
+  # ensure final output exists
+  if last_command >= 5 and not os.path.exists(stats_out):
+    logging.error("Expected output %s not found. Terminating." % stats_out)
+    sys.exit(1)
+
+  ### 6 - cleanup
+  logging.info("~~~ STEP 6 - Cleanup ~~~")
+  if first_command <= 6 and last_command >= 6:
     logging.info("Starting cleanup")
     try:
       # clean reads
