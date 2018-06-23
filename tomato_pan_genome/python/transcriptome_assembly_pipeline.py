@@ -285,6 +285,11 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     except Exception as e:
       logging.warning("Failed to clean alignment dir - %s" % str(e))
     try:
+      # clear tmp dir
+      rmtree("%s/tmp" % analysis_target)
+    except Exception as e:
+      logging.warning("Failed to clean tmp dir - %s" % str(e))
+    try:
       # clean assembly dir - delete everything except final output
       for f in os.listdir(trinity_dir_unmapped):
         if not f.startswith('Trinity') or not f.endswith('.fasta'):
