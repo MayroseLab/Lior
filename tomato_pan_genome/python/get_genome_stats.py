@@ -36,4 +36,7 @@ def get_stats(fasta_path):
     return results
 
 if __name__ == "__main__":
-  print(get_stats(sys.argv[1]))
+  res = get_stats(sys.argv[1])
+  for s in ['Total length', 'Total scaffolds', '# of gaps', '% gaps', 'N50', 'L50', 'N90', 'L90', 'Min scaffold length', 'Max scaffold length']:
+    print("{}\t{:,}".format(s,res[s]))
+
