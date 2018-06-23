@@ -238,7 +238,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
                       "export AUGUSTUS_CONFIG_PATH=\"/groups/itay_mayrose/liorglic/software/busco/augustus_config\"",
                       "module load python/python-3.3.0"]
     busco_commands.append("cd %s" % analysis_target)
-    busco_commands.append("python %s --in %s --out BUSCO_unmapped --lineage_path %s --mode transcriptome --cpu 20" % (
+    busco_commands.append("python %s --in %s --out BUSCO --lineage_path %s --mode transcriptome --cpu 20" % (
       busco_script_path, trinity_out, busco_lineage_path))
     job_id, exit_status = send_commands_to_queue("%s_BUSCO" % data_set_name, busco_commands, queue_conf, n_cpu=20)
     if exit_status != 0:
@@ -257,7 +257,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
   if first_command <= 5 and last_command >= 5:
     logging.info("Starting to collect stats")
     stats_out = "%s/transcriptome_stats.tsv" % analysis_target
-    collect_stats_commands = ["python %s/get_genome_stats.py %s > %s" %(os.path.dirname(os.path.realpath(__file__)), trinity_out, stats_out)]
+    collect_stats_commands = ["module load python/python-2.7.6", "python %s/get_genome_stats.py %s > %s" %(os.path.dirname(os.path.realpath(__file__)), trinity_out, stats_out)]
     job_id, exit_status = send_commands_to_queue("%s_collect_stats" % data_set_name, collect_stats_commands, queue_conf)
     if exit_status != 0:
       logging.error("Failed to collect stats. Terminating")
