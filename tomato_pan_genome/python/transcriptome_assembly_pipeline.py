@@ -290,14 +290,18 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     except Exception as e:
       logging.warning("Failed to clean tmp dir - %s" % str(e))
     try:
-      # clean assembly dir - delete everything except final output
-      for f in os.listdir(trinity_dir_unmapped):
-        if not f.startswith('Trinity') or not f.endswith('.fasta'):
-          os.remove("%s/%s" % (trinity_dir_unmapped, f))
+      # clean assembly dirs - delete everything except final output
+      dirs_to_clean = [trinity_dir_unmapped]
       if reference_genome:
-        for f in os.listdir(trinity_dir_mapped):
+        dirs_to_clean.append(trinity_dir_mapped)
+      for d in dirs_to_clean:
+        for f in os.listdir(d):
           if not f.startswith('Trinity') or not f.endswith('.fasta'):
-            os.remove("%s/%s" % (trinity_dir_mapped, f))
+            to_delete = "%s/%s" % (d, f)
+            if os.path.isfile(to_delete):
+              os.remove(to_delete)
+            elif os.path.isdir(to_delete):
+              rmtree(to_delete)
     except Exception as e:
       logging.warning("Failed to clean assembly dir - %s" % str(e))
     try:
