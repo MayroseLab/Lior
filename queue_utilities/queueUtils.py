@@ -145,7 +145,7 @@ def run_script_in_bg(script_path,*args):
   blocking the notebook.
   """
   def run_script(sp,args_tup):
-    magic_statement = 'run ' + sp + ' ' + ' '.join(['"' + a + '"' for a in args_tup if ' ' in a else a])
+    magic_statement = 'run ' + sp + ' ' + ' '.join(['"' + a + '"' if ' ' in a else a for a in args_tup])
     get_ipython().magic(magic_statement)
   jobs = bg.BackgroundJobManager()
   jobs.new(run_script,script_path,args)
