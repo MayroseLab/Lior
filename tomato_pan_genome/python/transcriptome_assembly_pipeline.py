@@ -29,6 +29,8 @@ class StreamToLogger(object):
     for line in buf.rstrip().splitlines():
       self.logger.log(self.log_level, line.rstrip())
 
+  def flush(self):
+    pass
 
 def prep_libs_lists(dir_path):
   """
@@ -318,7 +320,7 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
   else:
     logging.info("Skipping step...")
 
-  logging.info("i=== TRANSCRIPTOME ASSEMBLY PIPELINE COMPLETED SUCCESSFULLY ===")
+  logging.info("=== TRANSCRIPTOME ASSEMBLY PIPELINE COMPLETED SUCCESSFULLY ===")
 
 
 if __name__ == "__main__":
