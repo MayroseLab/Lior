@@ -104,10 +104,10 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
       alignment_commands.append(
         "STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (
           reference_genome, in_fastq_str, STAR_dir))
-    se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
-    se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
-    se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
-    alignment_commands.append(r"sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq))
+      se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
+      se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
+      se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
+      alignment_commands.append(r"sed 's/\(@SOLEXA.*\)/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq))
     # PE alignment
     if data_set_PE:
       in_fastq_str = ','.join([l[0] for l in data_set_PE]) + ' ' + ','.join([l[1] for l in data_set_PE])
