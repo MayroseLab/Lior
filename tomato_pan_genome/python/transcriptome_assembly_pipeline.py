@@ -217,8 +217,8 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
   if first_command <= 3 and last_command >= 3:
     logging.info("Starting assembly")
     if data_set_PE:
-      os.mkdir(trinity_dir_mapped)
-    os.mkdir(trinity_dir_unmapped)
+      mkdir_overwrite(trinity_dir_mapped, force_overwrite)
+    mkdir_overwrite(trinity_dir_unmapped, force_overwrite)
     job_id, exit_status = send_commands_to_queue("%s_transcriptome_assembly" % data_set_name,
                                                  trinity_assembly_commands, queue_conf, n_cpu=20)
     if exit_status != 0:
@@ -333,7 +333,7 @@ if __name__ == "__main__":
   parser.add_argument('log_file', action=FullPaths)
   parser.add_argument('-a', '--reference_annotation', default=None, action=FullPaths)
   parser.add_argument('-g', '--reference_genome', default=None, action=FullPaths)
-  parser.add_argument('-f', '--forcie_overwrite', action='store_true', default=False)
+  parser.add_argument('-f', '--force_overwrite', action='store_true', default=False)
   parser.add_argument('--first_command', default=1, type=int)
   parser.add_argument('--last_command', default=999, type=int)
   args = parser.parse_args()
@@ -356,6 +356,6 @@ if __name__ == "__main__":
 
   logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
   transcriptome_assembly_pipeline(args.data_set_name, args.sra_accessions, args.download_target, args.analysis_target,
-                                  args.reference_annotation, args.reference_genome, args.forcie_overwrite,
+                                  args.reference_annotation, args.reference_genome, args.force_overwrite,
                                   args.first_command, args.last_command)
 
