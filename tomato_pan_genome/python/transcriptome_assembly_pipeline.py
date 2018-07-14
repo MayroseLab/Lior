@@ -1,5 +1,6 @@
 import sys
 import os
+import itertools
 
 sys.path.append("../../queue_utilities/")
 from queueUtils import send_commands_to_queue
@@ -100,20 +101,34 @@ def transcriptome_assembly_pipeline(data_set_name, sra_accessions, download_targ
     alignment_commands = ["module load gcc/gcc620 perl/perl518 STAR/STAR-2.6.0a"]
     # SE alignment
     if data_set_SE:
+      if all( x.endswith('.gz') for x in data_set_SE):
+        zip_str = "--readFilesCommand zcat"
+      elif all( x.endswith('.fq') or x.endswith('.fastq') for x in data_set_SE):
+        zip_str = ""
+      else:
+        logging.error("SE libraries contain a mixture of zipped and unzipped files. Terminating")
+        sys.exit(1)
       in_fastq_str = ','.join(data_set_SE)
       alignment_commands.append(
-        "STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (
-          reference_genome, in_fastq_str, STAR_dir))
+        "STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/SE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx %s" % (
+          reference_genome, in_fastq_str, STAR_dir, zip_str))
       se_mapped_bam = "%s/SE_Aligned.sortedByCoord.out.bam" % STAR_dir
       se_unmapped_out = "%s/SE_Unmapped.out.mate1" % STAR_dir
       se_unmapped_fq = "%s/SE_Unmapped_R1.fq" % STAR_dir
       alignment_commands.append(r"sed 's/\([^ \t]\+\).*/\1\/1/' %s > %s" % (se_unmapped_out, se_unmapped_fq))
     # PE alignment
     if data_set_PE:
+      if all( x.endswith('.gz') for x in list(itertools.chain.from_iterable(data_set_PE))):
+        zip_str = "--readFilesCommand zcat"
+      elif all( x.endswith('.fq') or x.endswith('.fastq') for x in list(itertools.chain.from_iterable(data_set_PE))):
+        zip_str = ""
+      else:
+        logging.error("PE libraries contain a mixture of zipped and unzipped files. Terminating")
+        sys.exit(1)
       in_fastq_str = ','.join([l[0] for l in data_set_PE]) + ' ' + ','.join([l[1] for l in data_set_PE])
       alignment_commands.append(
-        "STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/PE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx --readFilesCommand zcat" % (
-          reference_genome, in_fastq_str, STAR_dir))
+        "STAR --genomeDir %s --readFilesIn %s --twopassMode Basic --chimSegmentMin 12 --chimJunctionOverhangMin 12 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000 --chimSegmentReadGapMax 3 --alignSJstitchMismatchNmax 5 -1 5 5 --runThreadN 5 --outSAMstrandField intronMotif --outFileNamePrefix %s/PE_ --outSAMtype BAM SortedByCoordinate --outReadsUnmapped Fastx %s" % (
+          reference_genome, in_fastq_str, STAR_dir, zip_str))
       pe_mapped_bam = "%s/PE_Aligned.sortedByCoord.out.bam" % STAR_dir
       pe_unmapped_out1 = "%s/PE_Unmapped.out.mate1" % STAR_dir
       pe_unmapped_out2 = "%s/PE_Unmapped.out.mate2" % STAR_dir
