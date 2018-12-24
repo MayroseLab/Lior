@@ -82,7 +82,7 @@ def check_maker_run_complete(run_log):
 
 def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
                                official_transcripts=None, annotation_transcripts='',
-                               annotation_proteins='', external_gff='', dryrun=False):
+                               annotation_proteins='', external_gff='', dryrun=False, first_command=1, last_command=999):
     """
     Run genome annotation pipeline
     1. Annotation lift-over for the official annotation
@@ -283,4 +283,7 @@ if __name__ == "__main__":
     logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
 
     # run pipeline
-    genome_annotation_pipeline()
+    genome_annotation_pipeline(args.genome_name, args.genome_fasta, args.out_dir, args.config_templates, force_overwrite=args.force_overwrite,
+                               official_transcripts=args.official_transcripts_set, annotation_transcripts=args.full_transcripts_set,
+                               annotation_proteins=args.full_proteins_set, external_gff=args.external_gff, dryrun=args.dryrun,
+                               first_command=args.first_command, last_command=args.last_command)
