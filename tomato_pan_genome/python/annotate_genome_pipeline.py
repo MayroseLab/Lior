@@ -80,7 +80,7 @@ def check_maker_run_complete(run_log):
             return True
     return False
 
-def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, force_overwrite=False,
+def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
                                official_transcripts=None, annotation_transcripts='',
                                annotation_proteins='', external_gff='', dryrun=False):
     """
@@ -109,9 +109,9 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, force_overwri
             logging.error("Official transcripts file %s not found." % official_transcripts)
             sys.exit(1)
         # prepare MAKER configurations
-        copyfile("%s/maker_bopts.ctl" % TEMPLATES_DIR, out_dir)
-        copyfile("%s/maker_exe.ctl" % TEMPLATES_DIR, out_dir)
-        liftover_template = "%s/maker_opts_liftover.ctl" % TEMPLATES_DIR
+        copyfile("%s/maker_bopts.ctl" % config_templates, out_dir)
+        copyfile("%s/maker_exe.ctl" % config_templates, out_dir)
+        liftover_template = "%s/maker_opts_liftover.ctl" % config_templates
         liftover_maker_conf = out_dir + "/maker_opts.ctl"
         substitutions = (
         ('<genome_fasta>', genome_fasta), ('<transcripts_fasta>', official_transcripts))
@@ -161,9 +161,9 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, force_overwri
     logging.info("~~~ STEP 2 - Genome annotation ~~~")
     if first_command <= 2 and last_command >= 2:
         # prepare MAKER configurations
-        copyfile("%s/maker_bopts.ctl" % TEMPLATES_DIR, out_dir)
-        copyfile("%s/maker_exe.ctl" % TEMPLATES_DIR, out_dir)
-        annotation_template = "%s/maker_opts.ctl" % TEMPLATES_DIR
+        copyfile("%s/maker_bopts.ctl" % config_templates, out_dir)
+        copyfile("%s/maker_exe.ctl" % config_templates, out_dir)
+        annotation_template = "%s/maker_opts.ctl" % config_templates
         annotation_maker_conf = out_dir + "/maker_opts.ctl"
         substitutions = [
             ('<genome_fasta>', genome_fasta),
@@ -251,6 +251,7 @@ if __name__ == "__main__":
                         action=FullPaths)
     parser.add_argument('out_dir', help="Path to output directory", action=FullPaths)
     parser.add_argument('log_file', action=FullPaths, help="Path to run log file")
+    parser.add_argument('config_templates', action=FullPaths, help="Path to configurations templates dir")
     parser.add_argument('--official_transcripts_set', default=None, action=FullPaths,
                         help="Path to fasta file with transcripts derived from official annotation")
     parser.add_argument('--full_transcripts_set', default=None, action=FullPaths,
@@ -269,7 +270,6 @@ if __name__ == "__main__":
 
     BUSCO_SCRIPT_PATH = "/groups/itay_mayrose/liorglic/software/busco/scripts/run_BUSCO.py"
     BUSCO_LINEAGE_PATH = "/groups/itay_mayrose/liorglic/software/busco/embryophyta_odb9/"
-    TEMPLATES_DIR = ""  # for MAKER configuration templates
 
     # set logger, including redirect STDOUT and STDERR to log
     logging.basicConfig(filename=args.log_file, level=logging.INFO,
