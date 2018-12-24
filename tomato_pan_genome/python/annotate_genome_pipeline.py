@@ -14,7 +14,7 @@ import sys
 import os
 import itertools
 from pbs.job import Job
-from shutil import rmtree, copyfile, move
+from shutil import rmtree, copy, move
 import argparse
 import logging
 import subprocess
@@ -109,8 +109,8 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
             logging.error("Official transcripts file %s not found." % official_transcripts)
             sys.exit(1)
         # prepare MAKER configurations
-        copyfile("%s/maker_bopts.ctl" % config_templates, out_dir)
-        copyfile("%s/maker_exe.ctl" % config_templates, out_dir)
+        copy("%s/maker_bopts.ctl" % config_templates, out_dir)
+        copy("%s/maker_exe.ctl" % config_templates, out_dir)
         liftover_template = "%s/maker_opts_liftover.ctl" % config_templates
         liftover_maker_conf = out_dir + "/maker_opts.ctl"
         substitutions = (
@@ -161,8 +161,8 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     logging.info("~~~ STEP 2 - Genome annotation ~~~")
     if first_command <= 2 and last_command >= 2:
         # prepare MAKER configurations
-        copyfile("%s/maker_bopts.ctl" % config_templates, out_dir)
-        copyfile("%s/maker_exe.ctl" % config_templates, out_dir)
+        copy("%s/maker_bopts.ctl" % config_templates, out_dir)
+        copy("%s/maker_exe.ctl" % config_templates, out_dir)
         annotation_template = "%s/maker_opts.ctl" % config_templates
         annotation_maker_conf = out_dir + "/maker_opts.ctl"
         substitutions = [
