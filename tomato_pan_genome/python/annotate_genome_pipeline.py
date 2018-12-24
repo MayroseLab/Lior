@@ -123,7 +123,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                     "mpirun -n %s -env I_MPI_FABRICS tcp maker -base %s > maker_liftover.out 2> "
                     "maker_liftover.err" % (MAKER_CPUS, liftover_base)]
         job_name = "%s_maker_liftover" % genome_name
-        maker_liftover_job = Job(job_name, commands=commands,
+        maker_liftover_job = Job(job_name, command=commands,
                                  nodes=8, ppn=int(MAKER_CPUS/MAKER_NODES), pmem=MAKER_MEM)
         # write script to file
         maker_liftover_job.script("%s/%s.q" %(out_dir, job_name))
@@ -146,7 +146,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                     "> %s/liftover_merge_gff.out 2> %s/liftover_merge_gff.err"
                     %(liftover_master_index, out_dir, out_dir)]
         job_name = "%s_liftover_merge_gff" % genome_name
-        liftover_make_gff_job = Job(job_name, commands=commands)
+        liftover_make_gff_job = Job(job_name, command=commands)
         # write script to file
         liftover_make_gff_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
@@ -183,7 +183,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                     "mpirun -n %s -env I_MPI_FABRICS tcp maker > maker_annotation.out 2> "
                     "maker_annotation.err" % MAKER_CPUS]
         job_name = "%s_maker_annotation" % genome_name
-        maker_annotation_job = Job(job_name, commands=commands,
+        maker_annotation_job = Job(job_name, command=commands,
                                  nodes=8, ppn=int(MAKER_CPUS/MAKER_NODES), pmem=MAKER_MEM)
         # write script to file
         maker_annotation_job.script("%s/%s.q" %(out_dir, job_name))
@@ -207,7 +207,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                     %(annotation_master_index, out_dir, out_dir),
                     "fasta_merge -d %s" % annotation_master_index]
         job_name = "%s_annotation_merge" % genome_name
-        annotation_merge_job = Job(job_name, commands=commands)
+        annotation_merge_job = Job(job_name, command=commands)
         # write script to file
         annotation_merge_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
