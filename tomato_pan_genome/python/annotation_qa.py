@@ -11,7 +11,13 @@ def mrna_aed(gff):
     Takes a gff3 object and returns a dictionary
     of AED scores with mRNA names as keys.
     """
-    return ({mrna_id: float(gff.features[mrna_id][0]['attributes']['_AED']) for mrna_id in gff.features if gff.features[mrna_id] and gff.features[mrna_id][0]['type'] == "mRNA"}
+    res = {}
+    mrna_lines = [line for line in gff.lines if line['line_type'] == 'feature' and line['type'] == 'mRNA']
+    for mrna_line in mrna_lines:
+        gene_name = mrna_line['attributes']['Name']
+        mrna_aed = mrna_line['attributes']['_AED']
+        res[gene_name] = mrna_aed
+    return res
 
 def mrna_utr(gff):
     """
@@ -24,6 +30,7 @@ def mrna_utr(gff):
     mrna_lines = [line for line in gff.lines if line['line_type'] == 'feature' and line['type'] == 'mRNA']
     for mrna_line in mrna_lines:
         mrna_id = mrna_line['attributes']['ID']
+        gene_name = mrna_line['attributes']['Name']
         descendants = gff.descendants(mrna_id.line_index)
         descendants_features_order = [f['type'] for f in descendants if f['type'] in ['five_prime_UTR', 'CDS', 'three_prime_UTR']]
         descendants_features_order_simp = ''.join([translate[t] for t in descendants_features_order])
@@ -35,7 +42,7 @@ def mrna_utr(gff):
             stat = 1
         else:
             stat = 2
-        res[mrna_id] = stat
+        res[gene_name] = stat
     return res
 
 def prot_busco(busco_full):
@@ -84,5 +91,5 @@ if __name__ == "__main__":
 
     qa_data = [ pd.Series(m[1].__call__(m[2]), name=m[0]) for m in qa_methods ]
     qa_df = pd.concat(qa_data, axis = 1)
-    with open(args.out_report,'w') as fo
+    with open(args.out_report,'w') as fo:
         print(qa_df.to_string(), file=fo)
