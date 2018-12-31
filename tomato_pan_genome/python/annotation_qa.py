@@ -29,9 +29,8 @@ def mrna_utr(gff):
     translate = {'five_prime_UTR':'5', 'three_prime_UTR':'3', 'CDS': 'C'}
     mrna_lines = [line for line in gff.lines if line['line_type'] == 'feature' and line['type'] == 'mRNA']
     for mrna_line in mrna_lines:
-        mrna_id = mrna_line['attributes']['ID']
         gene_name = mrna_line['attributes']['Name']
-        descendants = gff.descendants(mrna_id.line_index)
+        descendants = gff.descendants(mrna_line)
         descendants_features_order = [f['type'] for f in descendants if f['type'] in ['five_prime_UTR', 'CDS', 'three_prime_UTR']]
         descendants_features_order_simp = ''.join([translate[t] for t in descendants_features_order])
         if '5' not in descendants_features_order_simp and '3' not in descendants_features_order_simp:
@@ -51,8 +50,10 @@ def prot_busco(busco_full):
     with proteins in which BUSCOs were found. {gene name: BUSCO ID}
     """
     res = {}
-    with open(busco_full):
+    with open(busco_full) as f:
         for line in f:
+            if line.startswith('#'):
+                continue
             fields = line.split('\t')
             if fields[1] == "Complete" or fields[1] == "Duplicated":
                 res[fields[2]] = fields[0]
@@ -68,7 +69,7 @@ def prot_similarity(blast_res):
     with open(blast_res) as f:
         for line in f:
             fields = line.strip().split('\t')
-            res[fields[1]] = fields[9]
+            res[fields[0]] = fields[9]
     return res
 
 ### MAIN
