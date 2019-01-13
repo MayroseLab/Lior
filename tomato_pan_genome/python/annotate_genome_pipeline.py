@@ -19,11 +19,6 @@ import argparse
 import logging
 import subprocess
 
-### GLOBALS
-MAKER_CPUS = 160
-MAKER_NODES = 8
-MAKER_MEM = "20g"
-
 ### UTILITY CLASSES
 class FullPaths(argparse.Action):
     """Expand user- and relative-paths"""
@@ -82,6 +77,7 @@ def check_maker_run_complete(run_log):
     return False
 
 def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
+                               cpus=1, nodes=1, maker_ram='20g',
                                official_transcripts=None, annotation_transcripts='',
                                annotation_proteins='', external_gff='', busco_set='', blast_qa_db='',
                                dryrun=False, first_command=1, last_command=999):
@@ -123,10 +119,10 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         commands = ["module load miniconda/miniconda2-4.5.4-MakerMPI",
                     "cd %s" % out_dir,
                     "mpirun -n %s -env I_MPI_FABRICS tcp maker -base %s > maker_liftover.out 2> "
-                    "maker_liftover.err" % (MAKER_CPUS, liftover_base)]
+                    "maker_liftover.err" % (cpus, liftover_base)]
         job_name = "%s_maker_liftover" % genome_name
         maker_liftover_job = Job(job_name, command=commands,
-                                 nodes=8, ppn=int(MAKER_CPUS/MAKER_NODES), pmem=MAKER_MEM)
+                                 nodes=nodes, ppn=int(cpus/nodes), pmem=maker_ram)
         # write script to file
         maker_liftover_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
@@ -185,10 +181,10 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         commands = ["module load miniconda/miniconda2-4.5.4-MakerMPI",
                     "cd %s" % out_dir,
                     "mpirun -n %s -env I_MPI_FABRICS tcp maker > maker_annotation.out 2> "
-                    "maker_annotation.err" % MAKER_CPUS]
+                    "maker_annotation.err" % cpus]
         job_name = "%s_maker_annotation" % genome_name
         maker_annotation_job = Job(job_name, command=commands,
-                                 nodes=8, ppn=int(MAKER_CPUS/MAKER_NODES), pmem=MAKER_MEM)
+                                 nodes=nodes, ppn=int(cpus/nodes), pmem=maker_ram)
         # write script to file
         maker_annotation_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
@@ -265,6 +261,9 @@ if __name__ == "__main__":
     parser.add_argument('out_dir', help="Path to output directory", action=FullPaths)
     parser.add_argument('log_file', action=FullPaths, help="Path to run log file")
     parser.add_argument('config_templates', action=FullPaths, help="Path to configurations templates dir")
+    parser.add_argument('--cpus', type=int, default=1, help="Number of CPUs to use")
+    parser.add_argument('--nodes', type=int, default=1, help="Number compute nodes to spread CPUs on")
+    parser.add_argument('--maker_ram', default='20g', help="Max RAM to be used by MAKER")
     parser.add_argument('--official_transcripts_set', default=None, action=FullPaths,
                         help="Path to fasta file with transcripts derived from official annotation")
     parser.add_argument('--full_transcripts_set', default=None, action=FullPaths,
