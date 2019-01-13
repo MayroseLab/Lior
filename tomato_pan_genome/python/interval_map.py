@@ -150,7 +150,41 @@ class intervalmap(object):
                     v
                 ))
         return '{'+', '.join(s)+'}'
-        
+
+    def slice(self,start,end):
+        """
+            Returns an intervalmap object with all slices
+            matching a given range
+        """
+        slice_im = intervalmap()
+        for b,v in self.items():
+            low, high = b
+            if low is None:
+                low = -float('inf')
+            if high is None:
+                high = float('inf')
+            # slic:        ---------------
+            # self: ------------------
+            if low < start and high > start and high < end:
+                slice_im[start:high] = v
+            # slic:  ---------------
+            # self:        ------------------
+            elif low > start and low < end and high > end:
+                slice_im[low:end] = v
+            # slic:  ---------------
+            # self:      ------  
+            elif low > start and high < end:
+                slice_im[low:high] = v
+            # slic:      ----------
+            # self:  --------------------
+            elif start > low and end < high:
+                slice_im[start:end] = v
+            # slic:   ----------
+            # self:                ----------
+            elif low > end:
+                break
+        return slice_im
+
 if __name__ == "__main__":
     # Test 1
     i = intervalmap()
