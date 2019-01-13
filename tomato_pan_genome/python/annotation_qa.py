@@ -2,6 +2,7 @@ from __future__ import print_function, division
 import argparse
 from gff3 import Gff3
 import pandas as pd
+from interval_map import intervalmap
 
 
 ### FUNCTIONS
@@ -90,12 +91,32 @@ def prot_domains(ips_result):
                 res[gene] = min(res[gene], e_value)
         return res
 
-def repeats_overlap(genes_gff,repeats_gff):
+def repeats_overlap(gff):
     """
-    Parses gene models and repeats GFF files and 
+    Parses gene models and repeats GFF file and 
     returns the % of overlap per gene (dict).
     """
-    pass
+    # find repeats - store as interval maps
+    repeats_dict = {}
+    gff_lines = list(gff.lines)
+    repeat_lines = [line for line in gff_lines if line['line_type'] == 'feature' and line['source'] == "repeatmasker" and line['type'] == 'match']
+    for line in repeat_lines:
+        chrom, start, end = line['seqid'], line['start'], line['end']
+        if chrom not in repeats_dict:
+           repeats_dict[chrom] = intervalmap()
+        repeats_dict[chrom][start:end] = 'repeat'
+    # find mrna overlaps
+    res = {}
+    mrna_lines = [line for line in gff_lines if line['line_type'] == 'feature' and line['type'] == 'mRNA']
+    for mrna_line in mrna_lines:
+        gene_name = mrna_line['attributes']['Name']
+        chrom, mrna_start, mrna_end = mrna_line['seqid'], mrna_line['start'], mrna_line['end']
+        chrom_repeats_interval_map = repeats_dict[chrom]
+        mrna_len = mrna_end - mrna_start
+        repeat_overlap_len = len(chrom_repeats_interval_map.slice(mrna_start,mrna_end))
+        res[gene_name] = repeat_overlap_len/mrna_len*100
+    return res
+
 
 ### MAIN
 if __name__ == "__main__":
@@ -104,22 +125,18 @@ if __name__ == "__main__":
     parser.add_argument('--busco_result', default=None, help="BUSCO full report output")
     parser.add_argument('--ips_result', help="InterProScan tsv output")
     parser.add_argument('--blast_result', help="Blast search result of proteins vs. DB")
-    parser.add_argument('--repeats_gff', help="gff file of repeats")
     parser.add_argument('out_report', help="Output QA report")
     args = parser.parse_args()
 
     gff_obj = Gff3(args.in_gff)
-    qa_methods = [("AED",mrna_aed,gff_obj), ("UTR",mrna_utr,gff_obj)]
+    qa_methods = [("AED",mrna_aed,gff_obj), ("UTR",mrna_utr,gff_obj), ('Repeats',repeats_overlap,gff_obj)]
     if args.busco_result:
         qa_methods.append(('BUSCO',prot_busco,args.busco_result))
     if args.blast_result:
         qa_methods.append(('BLAST',prot_similarity,args.blast_result))
     if args.ips_result:
         qa_methods.append(('IPS',prot_domains,args.ips_result))
-    if args.repeats_gff:
-        qa_methods.append(('Repeats',repeats_overlap,args.in_gff,args.repeats_gff))
-    
 
-    qa_data = [ pd.Series(m[1].__call__(m[2:]), name=m[0]) for m in qa_methods ]
+    qa_data = [ pd.Series(m[1].__call__(m[2]), name=m[0]) for m in qa_methods ]
     qa_df = pd.concat(qa_data, axis = 1)
     qa_df.to_csv(args.out_report, sep='\t', index_label="gene", na_rep='NA')
