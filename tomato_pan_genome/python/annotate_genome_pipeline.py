@@ -78,18 +78,20 @@ def check_maker_run_complete(run_log):
     while line:
         if line.startswith("Maker is now finished!!!"):
             return True
+        line = p.stdout.readline()
     return False
 
 def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
                                official_transcripts=None, annotation_transcripts='',
-                               annotation_proteins='', external_gff='', dryrun=False, first_command=1, last_command=999):
+                               annotation_proteins='', external_gff='', busco_set='', blast_qa_db='',
+                               dryrun=False, first_command=1, last_command=999):
     """
     Run genome annotation pipeline
     1. Annotation lift-over for the official annotation
        This steps results in a gff to be given to next step
     2. Full annotation, based on transcript, protein and gene
        model evidence
-    3. Annotation filtration and refining
+    3. Annotation QA, filtration and refining
     4. Compute statistics
     5. Cleanup
     """
@@ -132,6 +134,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
             logging.info("Running MAKER (liftover)...")
             maker_liftover_job.submit_block()
             # check that run completed successfully
+            logging.info("Verifying successfull MAKER run...")
             if not check_maker_run_complete("%s/maker_liftover.err" % out_dir):
                 logging.error("MAKER run failed (see error in %s/maker_liftover.err). "
                               "Terminating pipeline" % out_dir)
@@ -156,6 +159,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     else:
         logging.info("Skipping step...")
     liftover_gff = "%s/%s.all.gff" %(liftover_out_dir, liftover_base)
+    move(liftover_maker_conf, "%s//maker_opts_liftover.ctl" % out_dir)
 
     ### 2 - Genome annotation
     logging.info("~~~ STEP 2 - Genome annotation ~~~")
@@ -202,7 +206,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                                                                      genome_fasta_base)
         commands = ["module load miniconda/miniconda2-4.5.4-MakerMPI",
                     "cd %s" % annotation_out_dir,
-                    "gff3_merge -d %s -g -n "
+                    "gff3_merge -d %s -n "
                     "> %s/annotation_merge_gff.out 2> %s/annotation_merge_gff.err"
                     %(annotation_master_index, out_dir, out_dir),
                     "fasta_merge -d %s" % annotation_master_index]
@@ -220,10 +224,19 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     annotation_raw_gff = "%s/%s.all.gff" %(annotation_out_dir, genome_fasta_base)
     annotation_raw_fasta = "%s/%s.all.maker.proteins.fasta" %(annotation_out_dir, genome_fasta_base)
 
-    ### 3 - Annotation filtration and refining
-    logging.info("~~~ STEP 3 - Annotation filtration and refining ~~~")
+    ### 3 - Annotation QA, filtration and refining
+    logging.info("~~~ STEP 3 - Annotation QA, filtration and refining ~~~")
     if first_command <= 3 and last_command >= 4:
         pass
+        # BUSCO
+
+        # BLAST - find sequence similarities
+
+        # InterProScan
+
+        # create QA report
+
+        # Filter annotation
     else:
         logging.info("Skipping step...")
 
@@ -260,6 +273,10 @@ if __name__ == "__main__":
                         help="Path to fasta file with full proteins set")
     parser.add_argument('--external_gff', default=None, action=FullPaths,
                         help="Path to an external gff with gene models to be used")
+    parser.add_argument('--busco_set', default=None, action=FullPaths,
+                        help="Path to BUSCOs data set to be used for QA")
+    parser.add_argument('--blast_qa_db', default=None, action=FullPaths,
+                        help="Path to to a Blast proteins DB against which annotated proteins will be compared for QA")
     parser.add_argument('-f', '--force_overwrite', action='store_true', default=False)
     parser.add_argument('--first_command', default=1, type=int, help="First command index ("
                                                                      "1-based)")
