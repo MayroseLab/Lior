@@ -72,13 +72,39 @@ def prot_similarity(blast_res):
             res[fields[0]] = fields[9]
     return res
 
+def prot_domains(ips_result):
+    """
+    Reads the tsv output of an InterProScan run and
+    returns a dict with gene name and minimal E-value found
+    for any domain for any application for the protein.
+    """
+    res = {}
+    with open(ips_result) as f:
+        for line in f:
+            fields = line.split('\t')
+            gene, e_value = fields[0], fields[8]
+            e_value = float(e_value)
+            if gene not in res:
+                res[gene] = e_value
+            else:
+                res[gene] = min(res[gene], e_value)
+        return res
+
+def repeats_overlap(genes_gff,repeats_gff):
+    """
+    Parses gene models and repeats GFF files and 
+    returns the % of overlap per gene (dict).
+    """
+    pass
+
 ### MAIN
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('in_gff', help="Input gff3 annotation file")
     parser.add_argument('--busco_result', default=None, help="BUSCO full report output")
-    parser.add_argument('--ips_result', help="InterProScan output")
+    parser.add_argument('--ips_result', help="InterProScan tsv output")
     parser.add_argument('--blast_result', help="Blast search result of proteins vs. DB")
+    parser.add_argument('--repeats_gff', help="gff file of repeats")
     parser.add_argument('out_report', help="Output QA report")
     args = parser.parse_args()
 
@@ -88,9 +114,12 @@ if __name__ == "__main__":
         qa_methods.append(('BUSCO',prot_busco,args.busco_result))
     if args.blast_result:
         qa_methods.append(('BLAST',prot_similarity,args.blast_result))
+    if args.ips_result:
+        qa_methods.append(('IPS',prot_domains,args.ips_result))
+    if args.repeats_gff:
+        qa_methods.append(('Repeats',repeats_overlap,args.in_gff,args.repeats_gff))
     
 
-    qa_data = [ pd.Series(m[1].__call__(m[2]), name=m[0]) for m in qa_methods ]
+    qa_data = [ pd.Series(m[1].__call__(m[2:]), name=m[0]) for m in qa_methods ]
     qa_df = pd.concat(qa_data, axis = 1)
-    with open(args.out_report,'w') as fo:
-        print(qa_df.to_string(), file=fo)
+    qa_df.to_csv(args.out_report, sep='\t', index_label="gene", na_rep='NA')
