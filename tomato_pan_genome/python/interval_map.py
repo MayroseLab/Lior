@@ -185,6 +185,12 @@ class intervalmap(object):
                 break
         return slice_im
 
+    def __len__(self):
+        tot = 0
+        for b,v in self.items():
+            tot += b[1] - b[0]
+        return tot
+
 if __name__ == "__main__":
     # Test 1
     i = intervalmap()
