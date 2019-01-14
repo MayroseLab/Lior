@@ -79,7 +79,8 @@ def check_maker_run_complete(run_log):
 def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
                                cpus=1, nodes=1, maker_ram='20g',
                                official_transcripts=None, annotation_transcripts='',
-                               annotation_proteins='', external_gff='', busco_set='', blast_qa_db='',
+                               annotation_proteins='', external_gff='', busco_exe='',  busco_set='',
+                               augustus_bin='', augustus_conf='', blast_qa_db='',
                                dryrun=False, first_command=1, last_command=999):
     """
     Run genome annotation pipeline
@@ -212,7 +213,6 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         annotation_merge_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
             # send commands to queue (block)
-            logging.info("Running gff and fasta merge...")
             logging.info("Creating merged GFF and FASTA...")
             annotation_merge_job.submit_block()
     else:
@@ -224,8 +224,21 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     logging.info("~~~ STEP 3 - Annotation QA, filtration and refining ~~~")
     if first_command <= 3 and last_command >= 4:
         pass
-        # BUSCO
-
+        ## BUSCO
+        busco_cpus = max(int(cpus/10),1)
+        job_name = "%s_BUSCO" % genome_name
+        busco_commands = ["export AUGUSTUS_CONFIG_PATH=\"%s\"" % augustus_conf,
+                          "export PATH=\"%s:$PATH\"" % augustus_bin,
+                          "cd %s" % annotation_out_dir,
+                          "python %s --in %s --out BUSCO --lineage_path %s --mode proteins --cpu %s >%s/%s.out 2>%s/%s.err"
+                          %(busco_exe, annotation_raw_fasta, busco_set, busco_cpus, out_dir, job_name, out_dir, job_name)]
+        busco_job = Job(job_name, command=busco_commands, cpus=busco_cpus, nodes=1)
+        # write script to file
+        busco_job.script("%s/%s.q" %(out_dir, job_name))
+        if not dryrun:
+            # send commands to queue
+            logging.info("Running BUSCO...")
+            busco_job.submit()
         # BLAST - find sequence similarities
 
         # InterProScan
@@ -276,6 +289,9 @@ if __name__ == "__main__":
                         help="Path to BUSCOs data set to be used for QA")
     parser.add_argument('--blast_qa_db', default=None, action=FullPaths,
                         help="Path to to a Blast proteins DB against which annotated proteins will be compared for QA")
+    parser.add_argument('--busco_exe', action=FullPaths, required=True, help="Path to BUSCO executabl")
+    parser.add_argument('--augustus_bin', action=FullPaths, required=True, help="Path to Augustus bin dir")
+    parser.add_argument('--augustus_conf', action=FullPaths, required=True, help="Path to Augustus config file")
     parser.add_argument('-f', '--force_overwrite', action='store_true', default=False)
     parser.add_argument('--first_command', default=1, type=int, help="First command index ("
                                                                      "1-based)")
