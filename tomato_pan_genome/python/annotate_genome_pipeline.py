@@ -225,7 +225,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     if first_command <= 3 and last_command >= 4:
         pass
         ## BUSCO
-        busco_cpus = max(int(cpus/10),1)
+        busco_cpus = min(10,max(int(cpus/10),1))
         job_name = "%s_BUSCO" % genome_name
         busco_commands = ["export AUGUSTUS_CONFIG_PATH=\"%s\"" % augustus_conf,
                           "export PATH=\"%s:$PATH\"" % augustus_bin,
@@ -238,14 +238,38 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         if not dryrun:
             # send commands to queue
             logging.info("Running BUSCO...")
-            busco_job.submit()
-        # BLAST - find sequence similarities
+            busco_job.submit_block()
+        ## BLAST - find sequence similarities
+        blast_cpus = min(10,max(int(cpus/10),1)) 
+        blast_out = "%s/%s_vs_%s.blast.tsv" %(out_dir, genome_name, os.path.basename(blast_qa_db))
+        job_name = "%s_blast_vs_proteins_db" % genome_name
+        blast_commands = ["module load blast/blast-2.7.1",
+                          "blastp -query %s -db %s -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads %s -out %s -max_target_seqs 1 >%s.out 2>%s.err" %(annotation_raw_fasta, blast_qa_db, blast_cpus, blast_out, out_dir, job_name, out_dir, job_name)]
+        blast_job = Job(job_name, command=blast_commands, cpus=blast_cpus, nodes=1)
+        # write script to file
+        blast_job.script("%s/%s.q" %(out_dir, job_name))
+        if not dryrun:
+            # send commands to queue
+            logging.info("Running BLAST vs. QA DB...")
+            blast_job.submit_block()
+        ## InterProScan (ips)
+        ips_cpus = min(20,max(int(cpus*0.8),1)) 
+        job_name = "%s_interProScan" % genome_name
+        ips_commands = ["module load interproscan/5.32-71",
+                        "module load java/jdk1.8.25",
+                        "interproscan.sh -i %s -b %s/%s.interProScan -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T %s >%s.out 2>%s.err" %(annotation_raw_fasta, out_dir, genome_name, out_dir, out_dir, job_name, out_dir, job_name)]
+        ips_job = Job(job_name, command=ips_commands, cpus=ips_cpus, nodes=1, mem='20g')
+        # write script to file
+        ips_job.script("%s/%s.q" %(out_dir, job_name))
+        if not dryrun:
+            # send commands to queue
+            logging.info("Running InterProScan...")
+            ips_job.submit_block()
+        ## Ensure BUSCO, Blast and InterproScan completed successfully
 
-        # InterProScan
+        ## create QA report
 
-        # create QA report
-
-        # Filter annotation
+        ## Filter annotation
     else:
         logging.info("Skipping step...")
 
