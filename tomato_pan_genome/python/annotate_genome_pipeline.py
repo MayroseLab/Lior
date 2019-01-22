@@ -80,7 +80,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                                cpus=1, nodes=1, maker_ram='20g',
                                official_transcripts=None, annotation_transcripts='',
                                annotation_proteins='', external_gff='', busco_exe='',  busco_set='',
-                               augustus_bin='', augustus_conf='', blast_qa_db='',
+                               augustus_bin='', augustus_conf='', blast_qa_db='', qa_report_script='',
                                dryrun=False, first_command=1, last_command=999):
     """
     Run genome annotation pipeline
@@ -273,7 +273,17 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
             logging.error("One of the QA results is missing. Terminating.")
             sys.exit(1)
         ## create QA report
-
+        job_name = "%s_QA_report" % genome_name
+        out_qa_report = "%s/%s.qa_report.tsv" %(out_qa_report)
+        qa_report_commands = ["module load python/python-anaconda2.7",
+                        "python %s %s %s --busco_result %s --blast_result %s --ips_result %s" %(qa_report_script, annotation_raw_gff, out_qa_report, busco_full_report, blast_out, ips_out_tsv)]
+        qa_report_job = Job(job_name, command=qa_report_commands, cpus=1, nodes=1)
+        # write script to file
+        qa_report_job.script("%s/%s.q" %(out_dir, job_name))
+        if not dryrun:
+            # send commands to queue
+            logging.info("Creating QA report...")
+            qa_report_job.submit_block()
         ## Filter annotation
     else:
         logging.info("Skipping step...")
@@ -321,6 +331,7 @@ if __name__ == "__main__":
     parser.add_argument('--busco_exe', action=FullPaths, required=True, help="Path to BUSCO executabl")
     parser.add_argument('--augustus_bin', action=FullPaths, required=True, help="Path to Augustus bin dir")
     parser.add_argument('--augustus_conf', action=FullPaths, required=True, help="Path to Augustus config file")
+    parser.add_argument('--qa_report_script', action=FullPaths, required=True, help="Path to annotation QA script")
     parser.add_argument('-f', '--force_overwrite', action='store_true', default=False)
     parser.add_argument('--first_command', default=1, type=int, help="First command index ("
                                                                      "1-based)")
