@@ -232,7 +232,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
                           "cd %s" % out_dir,
                           "python %s --in %s --out BUSCO --lineage_path %s --mode proteins --cpu %s >%s/%s.out 2>%s/%s.err"
                           %(busco_exe, annotation_raw_fasta, busco_set, busco_cpus, out_dir, job_name, out_dir, job_name)]
-        busco_job = Job(job_name, command=busco_commands, cpus=busco_cpus, nodes=1)
+        busco_job = Job(job_name, command=busco_commands, ppn=busco_cpus, nodes=1)
         # write script to file
         busco_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
@@ -246,7 +246,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         job_name = "%s_blast_vs_proteins_db" % genome_name
         blast_commands = ["module load blast/blast-2.7.1",
                           "blastp -query %s -db %s -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads %s -out %s -max_target_seqs 1 >%s.out 2>%s.err" %(annotation_raw_fasta, blast_qa_db, blast_cpus, blast_out, out_dir, job_name, out_dir, job_name)]
-        blast_job = Job(job_name, command=blast_commands, cpus=blast_cpus, nodes=1)
+        blast_job = Job(job_name, command=blast_commands, ppn=blast_cpus, nodes=1)
         # write script to file
         blast_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
@@ -260,7 +260,7 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
         ips_commands = ["module load interproscan/5.32-71",
                         "module load java/jdk1.8.25",
                         "interproscan.sh -i %s -b %s -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T %s >%s.out 2>%s.err" %(annotation_raw_fasta, ips_out_pref, out_dir, out_dir, job_name, out_dir, job_name)]
-        ips_job = Job(job_name, command=ips_commands, cpus=ips_cpus, nodes=1, mem='20g')
+        ips_job = Job(job_name, command=ips_commands, ppn=ips_cpus, nodes=1, mem='20g')
         # write script to file
         ips_job.script("%s/%s.q" %(out_dir, job_name))
         if not dryrun:
