@@ -76,12 +76,7 @@ def check_maker_run_complete(run_log):
         line = p.stdout.readline()
     return False
 
-def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templates, force_overwrite=False,
-                               cpus=1, nodes=1, maker_ram='20g',
-                               official_transcripts=None, annotation_transcripts='',
-                               annotation_proteins='', external_gff='', busco_exe='',  busco_set='',
-                               augustus_bin='', augustus_conf='', blast_qa_db='', qa_report_script='',
-                               dryrun=False, first_command=1, last_command=999):
+def genome_annotation_pipeline(**kwargs):
     """
     Run genome annotation pipeline
     1. Annotation lift-over for the official annotation
@@ -92,6 +87,13 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
     4. Compute statistics
     5. Cleanup
     """
+    # fetch args
+    for name, value in kwargs.items():
+        if type(value) == str:
+            exec("%s = \"%s\"" % (name, value))
+        else:
+            exec("%s = %s" % (name, value))
+
     logging.info("=== GENOME ANNOTATION PIPELINE STARTED ===")
     mkdir_overwrite(out_dir, force_overwrite)
     genome_fasta_base = os.path.splitext(os.path.basename(genome_fasta))[0]
@@ -307,20 +309,20 @@ def genome_annotation_pipeline(genome_name, genome_fasta, out_dir, config_templa
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('genome_name', help="Identifier for the genome to be annotated")
-    parser.add_argument('genome_fasta', help="Path to genome fasta to be annotated",
+    parser.add_argument('--genome_name', required=True, help="Identifier for the genome to be annotated")
+    parser.add_argument('--genome_fasta', required=True, help="Path to genome fasta to be annotated",
                         action=FullPaths)
-    parser.add_argument('out_dir', help="Path to output directory", action=FullPaths)
-    parser.add_argument('log_file', action=FullPaths, help="Path to run log file")
-    parser.add_argument('config_templates', action=FullPaths, help="Path to configurations templates dir")
+    parser.add_argument('--out_dir', required=True, help="Path to output directory", action=FullPaths)
+    parser.add_argument('--log_file', required=True, action=FullPaths, help="Path to run log file")
+    parser.add_argument('--config_templates', required=True, action=FullPaths, help="Path to configurations templates dir")
     parser.add_argument('--cpus', type=int, default=1, help="Number of CPUs to use")
     parser.add_argument('--nodes', type=int, default=1, help="Number compute nodes to spread CPUs on")
     parser.add_argument('--maker_ram', default='20g', help="Max RAM to be used by MAKER")
-    parser.add_argument('--official_transcripts_set', default=None, action=FullPaths,
+    parser.add_argument('--official_transcripts', default=None, action=FullPaths,
                         help="Path to fasta file with transcripts derived from official annotation")
-    parser.add_argument('--full_transcripts_set', default=None, action=FullPaths,
+    parser.add_argument('--annotation_transcripts', default=None, action=FullPaths,
                         help="Path to fasta file with full transcripts set")
-    parser.add_argument('--full_proteins_set', default=None, action=FullPaths,
+    parser.add_argument('--annotation_proteins', default=None, action=FullPaths,
                         help="Path to fasta file with full proteins set")
     parser.add_argument('--external_gff', default=None, action=FullPaths,
                         help="Path to an external gff with gene models to be used")
@@ -355,7 +357,4 @@ if __name__ == "__main__":
     logging.info("Pipeline script command:\npython %s" % ' '.join(sys.argv))
 
     # run pipeline
-    genome_annotation_pipeline(args.genome_name, args.genome_fasta, args.out_dir, args.config_templates, force_overwrite=args.force_overwrite,
-                               official_transcripts=args.official_transcripts_set, annotation_transcripts=args.full_transcripts_set,
-                               annotation_proteins=args.full_proteins_set, external_gff=args.external_gff, dryrun=args.dryrun,
-                               first_command=args.first_command, last_command=args.last_command)
+    genome_annotation_pipeline(**vars(args))
