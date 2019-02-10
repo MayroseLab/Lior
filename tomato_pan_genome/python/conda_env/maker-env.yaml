@@ -1,0 +1,6 @@
+name: maker-conda
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - maker

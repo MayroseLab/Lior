@@ -1,0 +1,8 @@
+name: annotation_qa
+channels:
+  - conda-forge
+dependencies:
+  - python=2.7
+  - pandas
+  - pip:
+    - gff3
