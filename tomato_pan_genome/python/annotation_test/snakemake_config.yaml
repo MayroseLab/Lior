@@ -1,0 +1,17 @@
+name: genome_annotation
+samples_info_file: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_test/samples_info_file
+out_dir: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_test/RESULT_snakemake
+config_templates: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_templates
+nodes: 2
+ppn: 2
+max_ram: 1g
+official_transcripts_fasta: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_test/official_transcripts.fasta
+annotation_transcripts_fasta: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_test/transcripts.fasta
+annotation_proteins_fasta: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_test/proteins.fasta
+external_gff:
+busco_set: /groups/itay_mayrose/liorglic/busco/solanaceae_odb10
+blast_qa_db: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/data/proteins_evidence/swissProt_emb_proteins.blast.db
+busco_exe: /groups/itay_mayrose/liorglic/busco/scripts/run_BUSCO.py
+augustus_bin: /powerapps/share/centos7/miniconda/miniconda2-4.5.4-MakerMPI/bin
+augustus_conf: /groups/itay_mayrose/liorglic/augustus/config
+qa_script: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_qa.py
