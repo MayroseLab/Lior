@@ -15,3 +15,4 @@ busco_exe: /groups/itay_mayrose/liorglic/busco/scripts/run_BUSCO.py
 augustus_bin: /powerapps/share/centos7/miniconda/miniconda2-4.5.4-MakerMPI/bin
 augustus_conf: /groups/itay_mayrose/liorglic/augustus/config
 qa_script: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/annotation_qa.py
+clean_proteins_fasta_script: /groups/itay_mayrose/liorglic/Projects/tomato_pan_genome/python/clean_protein_sequences.py
