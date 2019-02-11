@@ -175,9 +175,24 @@ rule create_annotation_fasta:
         fasta_merge -d {input}
         """
 
-rule proteins_busco:
+rule clean_proteins_fasta:
     input:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
+    params:
+        nodes=1,
+        ppn=1,
+        clean_proteins_fasta_script=config['clean_proteins_fasta_script']
+    conda:
+        "conda_env/biopython.yaml"
+    shell:
+        "python {params.clean_proteins_fasta_script} {input} {output}"
+
+
+rule proteins_busco:
+    input:
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/run_BUSCO/full_table_BUSCO.tsv"
     params:
@@ -200,7 +215,7 @@ rule proteins_busco:
 
 rule proteins_interproscan:
     input:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.fasta"
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/interProScan/{sample}.interProScan.tsv"
     params:       
@@ -216,7 +231,7 @@ rule proteins_interproscan:
 
 rule proteins_blast:
     input:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.fasta"
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/Blast/{sample}.blast.tsv"
     conda:
