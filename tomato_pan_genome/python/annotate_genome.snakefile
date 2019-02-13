@@ -63,13 +63,13 @@ rule maker_liftover:
         ppn=config['ppn']
     threads:
         config['ppn'] * config['nodes']
-    conda:
-        "conda_env/maker-env.yaml"
+#    conda:
+#        "conda_env/maker-env.yaml"
     shell:
         """
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        mpirun -n {threads} maker -base {params.base_name}
+        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
         if [ -f {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log ] && [ `grep STARTED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` == `grep FINISHED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` ]; then touch {output}; fi
         """
 
@@ -128,13 +128,13 @@ rule maker_annotation:
         ppn=config['ppn']
     threads:
         config['ppn'] * config['nodes']
-    conda:
-        "conda_env/maker-env.yaml"
+#    conda:
+#        "conda_env/maker-env.yaml"
     shell:
         """
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        mpirun -n {threads} maker -base {params.base_name}
+        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
         if [ -f {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log ] && [ `grep STARTED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` == `grep FINISHED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` ]; then touch {output}; fi
         """
 rule create_annotation_gff:
