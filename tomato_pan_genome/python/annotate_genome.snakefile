@@ -54,7 +54,8 @@ rule maker_liftover:
         opts=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_opts.ctl",
         exe=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_exe.ctl"
     output:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/liftover.done",
+        config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/liftover.done"
+    log:
         config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log"
     params:
         run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover",
@@ -70,7 +71,7 @@ rule maker_liftover:
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
         mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
-        if [ -f {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log ] && [ `grep STARTED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` == `grep FINISHED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` ]; then touch {output}; fi
+        if [ -f {log} ] && [ `grep STARTED {log} | wc -l` == `grep FINISHED {log} | wc -l` ]; then touch {output}; fi
         """
 
 rule create_liftover_gff:
@@ -119,7 +120,8 @@ rule maker_annotation:
         opts=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_opts.ctl",
         exe=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_exe.ctl"
     output:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/annotation.done",
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/annotation.done"
+    log:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log"
     params:
         run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
@@ -135,7 +137,7 @@ rule maker_annotation:
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
         mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
-        if [ -f {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log ] && [ `grep STARTED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` == `grep FINISHED {params.base_name}.maker.output/{params.base_name}_master_datastore_index.log | wc -l` ]; then touch {output}; fi
+        if [ -f {log} ] && [ `grep STARTED {log} | wc -l` == `grep FINISHED {log} | wc -l` ]; then touch {output}; fi
         """
 rule create_annotation_gff:
     input:
