@@ -13,4 +13,4 @@ ppn = job_properties["params"]["ppn"]
 rule_name = job_properties["rule"]
 sample_name = job_properties["wildcards"]['sample']
 
-os.system("qsub -N {sample}_{rule} -p 0 -q itaym -l nodes={nodes}:ppn={ppn} {script}".format(sample=sample_name, rule=rule_name, nodes=nodes, ppn=ppn, script=jobscript))
+os.system("qsub -N {sample}_{rule} -p 0 -q itaym2 -l nodes={nodes}:ppn={ppn} {script}".format(sample=sample_name, rule=rule_name, nodes=nodes, ppn=ppn, script=jobscript))
