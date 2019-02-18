@@ -1,4 +1,5 @@
 from snakemakeUtils import *
+from time import time
 
 def init(): 
     #load_info_file
@@ -41,11 +42,14 @@ rule prep_maker_liftover_configs:
         bopts=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_bopts.ctl",
         opts=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_opts.ctl",
         exe=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_exe.ctl"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_prep_maker_liftover_configs_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_prep_maker_liftover_configs_" + str(time()) + ".err"
     shell:
         """
-        cp {params.templates}/maker_bopts.ctl {output.bopts}
-        cp {params.templates}/maker_exe.ctl {output.exe}
-        sed -e 's|<genome_fasta>|{input}|' -e 's|<transcripts_fasta>|{params.official_transcripts}|' {params.templates}/maker_opts_liftover.ctl > {output.opts}
+        cp {params.templates}/maker_bopts.ctl {output.bopts} > {log.stdout} 2> {log.stderr}
+        cp {params.templates}/maker_exe.ctl {output.exe} >> {log.stdout} 2>> {log.stderr}
+        sed -e 's|<genome_fasta>|{input}|' -e 's|<transcripts_fasta>|{params.official_transcripts}|' {params.templates}/maker_opts_liftover.ctl > {output.opts} 2>> {log.stderr}
         """
 
 rule maker_liftover:
@@ -56,7 +60,9 @@ rule maker_liftover:
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/liftover.done"
     log:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log"
+        index=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log",
+        stdout=config["out_dir"] + "/logs/{sample}_maker_liftover_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_maker_liftover_" + str(time()) + ".err"
     params:
         run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover",
         base_name="{sample}_genome_liftover",
@@ -70,8 +76,8 @@ rule maker_liftover:
         """
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
-        if [ -f {log} ] && [ `grep STARTED {log} | wc -l` == `grep FINISHED {log} | wc -l` ]; then touch {output}; fi
+        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name} > {log.stdout} 2> {log.stderr}
+        if [ -f {log.index} ] && [ `grep STARTED {log.index} | wc -l` == `grep FINISHED {log.index} | wc -l` ]; then touch {output}; fi
         """
 
 rule create_liftover_gff:
@@ -79,6 +85,9 @@ rule create_liftover_gff:
         config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover.all.gff"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_create_liftover_gff_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_create_liftover_gff_" + str(time()) + ".err"
     threads:
         1
     params:
@@ -90,7 +99,7 @@ rule create_liftover_gff:
     shell:
         """
         cd {params.liftover_dir}
-        gff3_merge -d {input} -g -n
+        gff3_merge -d {input} -g -n > {log.stdout} 2> {log.stderr}
         """
 
 rule prep_maker_annotation_configs:
@@ -106,13 +115,16 @@ rule prep_maker_annotation_configs:
         bopts=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_bopts.ctl",
         opts=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_opts.ctl",
         exe=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_exe.ctl"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_prep_maker_annotation_configs_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_prep_maker_annotation_configs_" + str(time()) + ".err"
     run:
-        shell("cp {params.templates}/maker_bopts.ctl {output.bopts}")
-        shell("cp {params.templates}/maker_exe.ctl {output.exe}")
+        shell("cp {params.templates}/maker_bopts.ctl {output.bopts} > {log.stdout} 2> {log.stderr}")
+        shell("cp {params.templates}/maker_exe.ctl {output.exe} >> {log.stdout} 2>> {log.stderr}")
         if params.external_gff:
-            shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff},{params.external_gff}|' {params.templates}/maker_opts.ctl > {output.opts}")
+            shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff},{params.external_gff}|' {params.templates}/maker_opts.ctl > {output.opts} 2>> {log.stderr}")
         else:
-            shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff}|' {params.templates}/maker_opts.ctl > {output.opts}")
+            shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff}|' {params.templates}/maker_opts.ctl > {output.opts} 2>> {log.stderr}")
 
 rule maker_annotation:
     input:
@@ -122,7 +134,9 @@ rule maker_annotation:
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/annotation.done"
     log:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log"
+        index=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log",
+        stdout=config["out_dir"] + "/logs/{sample}_maker_annotation_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_maker_annotation_" + str(time()) + ".err"
     params:
         run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
         base_name="{sample}",
@@ -136,14 +150,17 @@ rule maker_annotation:
         """
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
-        if [ -f {log} ] && [ `grep STARTED {log} | wc -l` == `grep FINISHED {log} | wc -l` ]; then touch {output}; fi
+        mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name} > {log.stdout} 2> {log.stderr}
+        if [ -f {log.index} ] && [ `grep STARTED {log.index} | wc -l` == `grep FINISHED {log.index} | wc -l` ]; then touch {output}; fi
         """
 rule create_annotation_gff:
     input:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.gff"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_create_annotation_gff_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_create_annotation_gff_" + str(time()) + ".err"
     threads:
         1
     params:
@@ -155,7 +172,7 @@ rule create_annotation_gff:
     shell:
         """
         cd {params.annotation_dir}
-        gff3_merge -d {input} -n
+        gff3_merge -d {input} -n > {log.stdout} 2> {log.stderr}
         """
 
 rule create_annotation_fasta:
@@ -163,6 +180,9 @@ rule create_annotation_fasta:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.fasta"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_create_annotation_fasta_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_create_annotation_fasta_" + str(time()) + ".err"
     threads:
         1
     params:
@@ -174,7 +194,7 @@ rule create_annotation_fasta:
     shell:
         """
         cd {params.annotation_dir}
-        fasta_merge -d {input}
+        fasta_merge -d {input} > {log.stdout} 2> {log.stderr}
         """
 
 rule clean_proteins_fasta:
@@ -182,6 +202,9 @@ rule clean_proteins_fasta:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_clean_proteins_fasta_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_clean_proteins_fasta_" + str(time()) + ".err"
     params:
         nodes=1,
         ppn=1,
@@ -189,7 +212,7 @@ rule clean_proteins_fasta:
     conda:
         "conda_env/biopython.yaml"
     shell:
-        "python {params.clean_proteins_fasta_script} {input} {output}"
+        "python {params.clean_proteins_fasta_script} {input} {output} > {log.stdout} 2> {log.stderr}"
 
 
 rule proteins_busco:
@@ -197,6 +220,9 @@ rule proteins_busco:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/run_BUSCO/full_table_BUSCO.tsv"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_proteins_busco_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_proteins_busco_" + str(time()) + ".err"
     params:
         busco_exe=config['busco_exe'],
         busco_set=config['busco_set'],
@@ -212,7 +238,7 @@ rule proteins_busco:
         export AUGUSTUS_CONFIG_PATH={params.augustus_conf}
         export PATH={params.augustus_bin}:$PATH
         cd {params.out_dir}
-        python {params.busco_exe} --in {input} --out BUSCO --lineage_path {params.busco_set} --cpu {threads} --mode proteins -f
+        python {params.busco_exe} --in {input} --out BUSCO --lineage_path {params.busco_set} --cpu {threads} --mode proteins -f > {log.stdout} 2> {log.stderr}
         """
 
 rule proteins_interproscan:
@@ -220,6 +246,9 @@ rule proteins_interproscan:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/interProScan/{sample}.interProScan.tsv"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_proteins_interproscan_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_proteins_interproscan_" + str(time()) + ".err"
     params:       
         nodes=1,
         ppn=1,
@@ -228,7 +257,7 @@ rule proteins_interproscan:
         """
         module load interproscan/5.32-71
         module load java/jdk1.8.25
-        interproscan.sh -i {input} -b {params.ips_dir}/{wildcards.sample}.interProScan -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T {params.ips_dir}
+        interproscan.sh -i {input} -b {params.ips_dir}/{wildcards.sample}.interProScan -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T {params.ips_dir} > {log.stdout} 2> {log.stderr}
         """
 
 rule proteins_blast:
@@ -236,6 +265,9 @@ rule proteins_blast:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}.all.maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/Blast/{sample}.blast.tsv"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_proteins_blast_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_proteins_blast_" + str(time()) + ".err"
     conda:
         "conda_env/blast.yaml"
     params:
@@ -246,7 +278,7 @@ rule proteins_blast:
         config['ppn']
     shell:
         """
-        blastp -query {input} -db {params.blast_qa_db} -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads {threads} -max_target_seqs 1 -out {output}
+        blastp -query {input} -db {params.blast_qa_db} -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads {threads} -max_target_seqs 1 -out {output} > {log.stdout} 2> {log.stderr}
         """
 
 rule annotation_qa:
@@ -257,6 +289,9 @@ rule annotation_qa:
         blast=config["out_dir"] + "/per_sample/{sample}/Blast/{sample}.blast.tsv"
     output:
         config["out_dir"] + "/per_sample/{sample}/Annotation_QA/{sample}.QA_report.tsv"
+    log:
+        stdout=config["out_dir"] + "/logs/{sample}_annotation_qa_" + str(time()) + ".out",
+        stderr=config["out_dir"] + "/logs/{sample}_annotation_qa_" + str(time()) + ".err"
     params:
         nodes=1,
         ppn=1,
@@ -265,5 +300,5 @@ rule annotation_qa:
         "conda_env/annotation_qa.yaml"
     shell:
         """
-        python {params.qa_script} {input.gff} {output} --busco_result {input.busco} --blast_result {input.blast} --ips_result {input.ips}
+        python {params.qa_script} {input.gff} {output} --busco_result {input.busco} --blast_result {input.blast} --ips_result {input.ips} > {log.stdout} 2> {log.stderr}
         """
