@@ -5,7 +5,7 @@ from __future__ import print_function
 import argparse
 
 def pair(arg):
-  return arg.split(',')
+  return arg.split('=')
 
 parser = argparse.ArgumentParser(description='Edit MAKER config')
 parser.add_argument('in_conf', help="Input MAKER configuration")
