@@ -105,7 +105,7 @@ rule merge_full_gff:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        gff3_merge -n -s {input} > {output}
+        gff3_merge -n -s {input} | grep -v '###' > {output}
         """
 
 rule merge_genes_gff:
@@ -116,7 +116,7 @@ rule merge_genes_gff:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        gff3_merge -n -s {input} > {output}
+        gff3_merge -n -s {input} | grep -v '###' > {output}
         """
 
 rule convert_gff_coords:
