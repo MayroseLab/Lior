@@ -30,8 +30,8 @@ rule all:
     input:
         config["out_dir"] + "/maker.all.convert.gff",
         config["out_dir"] + "/maker.genes.convert.gff",
-        config["out_dir"] + "/maker.transcripts.convert.fasta",
-        config["out_dir"] + "/maker.proteins.convert.fasta"
+        config["out_dir"] + "/maker.transcripts.fasta",
+        config["out_dir"] + "/maker.proteins.fasta"
 	
 def get_chunk(wildcards):
     return config['chunks_info'][wildcards.chunk]['path']
@@ -105,7 +105,7 @@ rule merge_full_gff:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        gff3_merge -n -s {input} | grep -v '###' > {output}
+        gff3_merge -n -s {input} > {output}
         """
 
 rule merge_genes_gff:
@@ -116,19 +116,18 @@ rule merge_genes_gff:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        gff3_merge -n -s {input} | grep -v '###' > {output}
+        gff3_merge -n -s {input} > {output}
         """
 
 rule convert_gff_coords:
     input:
         config["out_dir"] + "/maker.{type}.gff"
     output:
-        gff=config["out_dir"] + "/maker.{type}.convert.gff",
-        tsv=config["out_dir"] + "/{type}.convert.tsv"
+        config["out_dir"] + "/maker.{type}.convert.gff"
     params:
         coord_conversion_script = config["coord_conversion_script"]
     shell:
-        "python {params.coord_conversion_script} {input} {output.gff} {output.tsv}"
+        "python {params.coord_conversion_script} {input} {output}"
 
 rule create_fasta:
     input:
@@ -167,30 +166,4 @@ rule merge_proteins_fasta:
     shell:
         """
         cat {input} > {output}
-        """
-
-rule rename_transcripts:
-    input:
-        fasta=config["out_dir"] + "/maker.transcripts.fasta",
-        tsv=config["out_dir"] + "/genes.convert.tsv"
-    output:
-        config["out_dir"] + "/maker.transcripts.convert.fasta"
-    params:
-        name_convertion_script=config['name_convertion_script'],
-    shell:
-        """
-        python {params.name_convertion_script} {input.fasta} {input.tsv} {output}
-        """
-
-rule rename_proteins:
-    input:
-        fasta=config["out_dir"] + "/maker.proteins.fasta",
-        tsv=config["out_dir"] + "/genes.convert.tsv"
-    output:
-        config["out_dir"] + "/maker.proteins.convert.fasta"
-    params:
-        name_convertion_script=config['name_convertion_script']
-    shell:
-        """
-        python {params.name_convertion_script} {input.fasta} {input.tsv} {output}
         """

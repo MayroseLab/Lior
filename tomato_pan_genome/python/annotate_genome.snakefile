@@ -77,8 +77,7 @@ if config['maker_parallel'] == "chunks":
             templates_dir=config["liftover_config_templates"],
             coord_conversion_script=config['coord_conversion_script'],
             config_edit_script=config['config_edit_script'],
-            official_transcripts_fasta=config['official_transcripts_fasta'],
-            name_convertion_script=config['name_convertion_script']
+            official_transcripts_fasta=config['official_transcripts_fasta']
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -87,7 +86,6 @@ if config['maker_parallel'] == "chunks":
             echo "config_templates: {params.templates_dir}" >> {output}
             echo "coord_conversion_script: {params.coord_conversion_script}" >> {output}
             echo "config_edit_script: {params.config_edit_script}" >> {output}
-            echo "name_convertion_script: {params.name_convertion_script}" >> {output}
             echo config_kv_pairs: est={params.official_transcripts_fasta} >> {output}
             """
 
@@ -194,8 +192,7 @@ if config['maker_parallel'] == "chunks":
             config_edit_script=config['config_edit_script'],
             transcripts=config['annotation_transcripts_fasta'],
             proteins=config['annotation_proteins_fasta'],
-            external_gff=config['external_gff'],
-            name_convertion_script=config['name_convertion_script']
+            external_gff=config['external_gff']
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -204,7 +201,6 @@ if config['maker_parallel'] == "chunks":
             echo "config_templates: {params.templates_dir}" >> {output}
             echo "coord_conversion_script: {params.coord_conversion_script}" >> {output}
             echo "config_edit_script: {params.config_edit_script}" >> {output}
-            echo "name_convertion_script: {params.name_convertion_script}" >> {output}
             echo config_kv_pairs: est={params.transcripts} protein={params.proteins} pred_gff={input.liftover_gff} >> {output}
             """
 
@@ -214,8 +210,8 @@ if config['maker_parallel'] == "chunks":
         output:
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.genes.convert.gff",
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.all.convert.gff",
-            config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.convert.fasta",
-            config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.transcripts.convert.fasta"
+            config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.fasta",
+            config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.transcripts.fasta"
         params:
             run_maker_in_chunks_snakefile=config['run_maker_in_chunks_snakefile'],
             maker_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
@@ -330,7 +326,7 @@ elif config['maker_parallel'] == "mpi":
 
 rule clean_proteins_fasta:
     input:
-        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.convert.fasta"
+        config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.clean.fasta"
     log:
@@ -417,9 +413,6 @@ rule create_repeats_gff:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.all.convert.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.repeats.convert.gff"
-    params:
-        nodes=1,
-        ppn=config['ppn']
     shell:
         """
         awk '$2 == "repeatmasker" && $3 == "match"' {input} > {output}
