@@ -413,6 +413,9 @@ rule create_repeats_gff:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.all.convert.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.repeats.convert.gff"
+    params:
+        nodes=1,
+        ppn=config['ppn']
     shell:
         """
         awk '$2 == "repeatmasker" && $3 == "match"' {input} > {output}
