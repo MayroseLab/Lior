@@ -29,5 +29,4 @@ with open(in_gff) as f, open(out_gff,'w') as fo:
     fields[0] = real_rec_name
     fields[3] = str(int(fields[3]) + start_on_real_rec)
     fields[4] = str(int(fields[4]) + start_on_real_rec)
-    fields[8] = fields[8].replace(rec_name_with_coords, real_rec_name)
     print('\t'.join(fields), file=fo)
