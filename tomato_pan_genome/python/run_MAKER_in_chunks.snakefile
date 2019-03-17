@@ -65,6 +65,9 @@ rule run_maker:
         index=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk_master_datastore_index.log"
     params:
         run_dir=config["out_dir"] + "/chunks/{chunk}",
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         cd {params.run_dir}
@@ -79,6 +82,10 @@ rule create_full_gff:
        index=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk_master_datastore_index.log" 
     output:
         config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -91,6 +98,10 @@ rule create_genes_gff:
        index=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk_master_datastore_index.log"
     output:
         config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -102,6 +113,10 @@ rule merge_full_gff:
        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.all.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -113,6 +128,10 @@ rule merge_genes_gff:
        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.genes.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -125,7 +144,10 @@ rule convert_gff_coords:
     output:
         config["out_dir"] + "/maker.{type}.convert.gff"
     params:
-        coord_conversion_script = config["coord_conversion_script"]
+        coord_conversion_script = config["coord_conversion_script"],
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         "python {params.coord_conversion_script} {input} {output}"
 
@@ -139,6 +161,9 @@ rule create_fasta:
         prot=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.maker.proteins.fasta"
     params:
         out_dir = config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/",
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -153,6 +178,10 @@ rule merge_transcripts_fasta:
        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.maker.transcripts.fasta", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.transcripts.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         cat {input} > {output}
@@ -163,6 +192,10 @@ rule merge_proteins_fasta:
        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.maker.proteins.fasta", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.proteins.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample']
     shell:
         """
         cat {input} > {output}

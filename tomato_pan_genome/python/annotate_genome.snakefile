@@ -44,12 +44,13 @@ if config['maker_parallel'] == "chunks":
             break_script=config['break_to_chunks_script'],
             chunks_out_dir=config["out_dir"] + "/per_sample/{sample}/genome_chunks",
             nodes=1,
-            ppn=1
+            ppn=1,
+            queue=config['queue'],
+            priority=config['priority']
         conda:
             "conda_env/biopython.yaml"
         shell:
             """
-            #mkdir {params.chunks_out_dir}
             python {params.break_script} {input} {params.chunks_out_dir} --n_chunks {params.n_chunks} --break_mode
             if (( `ls -1 {params.chunks_out_dir} | wc -l` >= {params.n_chunks} )); then touch {output}; fi
             """
@@ -77,7 +78,10 @@ if config['maker_parallel'] == "chunks":
             templates_dir=config["liftover_config_templates"],
             coord_conversion_script=config['coord_conversion_script'],
             config_edit_script=config['config_edit_script'],
-            official_transcripts_fasta=config['official_transcripts_fasta']
+            official_transcripts_fasta=config['official_transcripts_fasta'],
+            queue=config['queue'],
+            priority=config['priority'],
+            sample="{sample}"
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -86,6 +90,9 @@ if config['maker_parallel'] == "chunks":
             echo "config_templates: {params.templates_dir}" >> {output}
             echo "coord_conversion_script: {params.coord_conversion_script}" >> {output}
             echo "config_edit_script: {params.config_edit_script}" >> {output}
+            echo "queue: {params.queue}" >> {output}
+            echo "priority: {params.priority}" >> {output}
+            echo "sample: {params.sample}" >> {output}
             echo config_kv_pairs: est={params.official_transcripts_fasta} >> {output}
             """
 
@@ -98,11 +105,14 @@ if config['maker_parallel'] == "chunks":
             run_maker_in_chunks_snakefile=config['run_maker_in_chunks_snakefile'],
             queue=config['queue'],
             jobs=config['jobs']//len(config['samples_info']),
-            liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover"
+            liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover",
+            qsub_wrapper_script=config['qsub_wrapper_script'],
+            priority=config['priority'],
+            jobscript=config['jobscript']
         shell:
             """
             cd {params.liftover_dir}
-            snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "qsub -N {wildcards.sample}_chunk_liftover -q {params.queue}" -j {params.jobs} --latency-wait 60 --restart-times 3
+            snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
             """
 
 elif config['maker_parallel'] == "mpi":
@@ -142,7 +152,9 @@ elif config['maker_parallel'] == "mpi":
             run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover",
             base_name="{sample}_genome_liftover",
             nodes=config['nodes'],
-            ppn=config['ppn']
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority']
         threads:
             config['ppn'] * config['nodes']
     #    conda:
@@ -168,7 +180,9 @@ elif config['maker_parallel'] == "mpi":
         params:
             nodes=1,
             ppn=1,
-            liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output"
+            liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output",
+            queue=config['queue'],
+            priority=config['priority']
         conda:
             "conda_env/maker-env.yaml"
         shell:
@@ -192,7 +206,10 @@ if config['maker_parallel'] == "chunks":
             config_edit_script=config['config_edit_script'],
             transcripts=config['annotation_transcripts_fasta'],
             proteins=config['annotation_proteins_fasta'],
-            external_gff=config['external_gff']
+            external_gff=config['external_gff'],
+            queue=config['queue'],
+            priority=config['priority'],
+            sample="{sample}"
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -201,6 +218,9 @@ if config['maker_parallel'] == "chunks":
             echo "config_templates: {params.templates_dir}" >> {output}
             echo "coord_conversion_script: {params.coord_conversion_script}" >> {output}
             echo "config_edit_script: {params.config_edit_script}" >> {output}
+            echo "queue: {params.queue}" >> {output}
+            echo "priority: {params.priority}" >> {output}
+            echo "sample: {params.sample}" >> {output}
             echo config_kv_pairs: est={params.transcripts} protein={params.proteins} pred_gff={input.liftover_gff} >> {output}
             """
 
@@ -216,11 +236,14 @@ if config['maker_parallel'] == "chunks":
             run_maker_in_chunks_snakefile=config['run_maker_in_chunks_snakefile'],
             maker_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
             queue=config['queue'],
-            jobs=config['jobs']//len(config['samples_info'])
+            jobs=config['jobs']//len(config['samples_info']),
+            qsub_wrapper_script=config['qsub_wrapper_script'],
+            priority=config['priority'],
+            jobscript=config['jobscript']
         shell:
             """
             cd {params.maker_dir}
-            snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "qsub -N {wildcards.sample}_chunk_annotation -q {params.queue}" -j {params.jobs} --latency-wait 60 --restart-times 3
+            snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
             """
 
 
@@ -265,7 +288,9 @@ elif config['maker_parallel'] == "mpi":
             run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
             base_name="{sample}",
             nodes=config['nodes'],
-            ppn=config['ppn']
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority']
         threads:
             config['ppn'] * config['nodes']
     #    conda:
@@ -291,7 +316,9 @@ elif config['maker_parallel'] == "mpi":
         params:
             nodes=1,
             ppn=1,
-            annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation"
+            annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
+            queue=config['queue'],
+            priority=config['priority']
         conda:
             "conda_env/maker-env.yaml"
         shell:
@@ -314,7 +341,9 @@ elif config['maker_parallel'] == "mpi":
         params:
             nodes=1,
             ppn=1,
-            annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation"
+            annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
+            queue=config['queue'],
+            priority=config['priority']
         conda:
             "conda_env/maker-env.yaml"
         shell:
@@ -335,7 +364,9 @@ rule clean_proteins_fasta:
     params:
         nodes=1,
         ppn=1,
-        clean_proteins_fasta_script=config['clean_proteins_fasta_script']
+        clean_proteins_fasta_script=config['clean_proteins_fasta_script'],
+        queue=config['queue'],
+        priority=config['priority']
     conda:
         "conda_env/biopython.yaml"
     shell:
@@ -357,7 +388,9 @@ rule proteins_busco:
         augustus_bin=config['augustus_bin'],
         out_dir=config["out_dir"] + "/per_sample/{sample}/",
         nodes=1,
-        ppn=config['ppn']
+        ppn=config['ppn'],
+        queue=config['queue'],
+        priority=config['priority']
     threads:
         config['ppn']
     shell:
@@ -379,7 +412,9 @@ rule proteins_interproscan:
     params:       
         nodes=1,
         ppn=1,
-        ips_dir=config["out_dir"] + "/per_sample/{sample}/interProScan/"
+        ips_dir=config["out_dir"] + "/per_sample/{sample}/interProScan/",
+        queue=config['queue'],
+        priority=config['priority']
     shell:
         """
         module load interproscan/5.32-71
@@ -400,7 +435,9 @@ rule proteins_blast:
     params:
         nodes=1,
         ppn=config['ppn'],
-        blast_qa_db=config['blast_qa_db']
+        blast_qa_db=config['blast_qa_db'],
+        queue=config['queue'],
+        priority=config['priority']
     threads:
         config['ppn']
     shell:
@@ -415,7 +452,9 @@ rule create_repeats_gff:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.repeats.convert.gff"
     params:
         nodes=1,
-        ppn=config['ppn']
+        ppn=config['ppn'],
+        queue=config['queue'],
+        priority=config['priority']
     shell:
         """
         awk '$2 == "repeatmasker" && $3 == "match"' {input} > {output}
@@ -436,7 +475,9 @@ rule annotation_qa:
     params:
         nodes=1,
         ppn=1,
-        qa_script=config['qa_script']
+        qa_script=config['qa_script'],
+        queue=config['queue'],
+        priority=config['priority']
     conda:
         "conda_env/annotation_qa.yaml"
     shell:
