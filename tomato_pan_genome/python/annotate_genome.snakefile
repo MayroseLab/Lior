@@ -1,5 +1,5 @@
 from snakemakeUtils import *
-from time import time
+import os
 
 def init(): 
     #load_info_file
@@ -8,8 +8,12 @@ def init():
 
 init()
 
+LOGS_DIR = config['out_dir'] + "/logs"
+
 onstart:
     write_config_file(config)
+    if not os.path.isdir(LOGS_DIR):
+        os.mkdir(LOGS_DIR)
 
 onsuccess:
     print("%s pipeline finished, no error" % config['name'])
@@ -46,7 +50,8 @@ if config['maker_parallel'] == "chunks":
             nodes=1,
             ppn=1,
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         conda:
             "conda_env/biopython.yaml"
         shell:
@@ -81,7 +86,8 @@ if config['maker_parallel'] == "chunks":
             official_transcripts_fasta=config['official_transcripts_fasta'],
             queue=config['queue'],
             priority=config['priority'],
-            sample="{sample}"
+            sample="{sample}",
+            logs_dir=LOGS_DIR
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -93,6 +99,7 @@ if config['maker_parallel'] == "chunks":
             echo "queue: {params.queue}" >> {output}
             echo "priority: {params.priority}" >> {output}
             echo "sample: {params.sample}" >> {output}
+            echo "logs_dir: {params.logs_dir}" >> {output}
             echo config_kv_pairs: est={params.official_transcripts_fasta} >> {output}
             """
 
@@ -127,14 +134,11 @@ elif config['maker_parallel'] == "mpi":
             bopts=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_bopts.ctl",
             opts=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_opts.ctl",
             exe=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker_exe.ctl"
-        log:
-            stdout=config["out_dir"] + "/logs/{sample}_prep_maker_liftover_configs_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_prep_maker_liftover_configs_" + str(time()) + ".err"
         shell:
             """
-            cp {params.templates}/maker_bopts.ctl {output.bopts} > {log.stdout} 2> {log.stderr}
-            cp {params.templates}/maker_exe.ctl {output.exe} >> {log.stdout} 2>> {log.stderr}
-            sed -e 's|<genome_fasta>|{input}|' -e 's|<transcripts_fasta>|{params.official_transcripts}|' {params.templates}/maker_opts.ctl > {output.opts} 2>> {log.stderr}
+            cp {params.templates}/maker_bopts.ctl {output.bopts}
+            cp {params.templates}/maker_exe.ctl {output.exe}
+            sed -e 's|<genome_fasta>|{input}|' -e 's|<transcripts_fasta>|{params.official_transcripts}|' {params.templates}/maker_opts.ctl > {output.opts}
             """
     
     rule maker_liftover:
@@ -146,15 +150,14 @@ elif config['maker_parallel'] == "mpi":
             config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/liftover.done"
         log:
             index=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log",
-            stdout=config["out_dir"] + "/logs/{sample}_maker_liftover_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_maker_liftover_" + str(time()) + ".err"
         params:
             run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover",
             base_name="{sample}_genome_liftover",
             nodes=config['nodes'],
             ppn=config['ppn'],
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         threads:
             config['ppn'] * config['nodes']
     #    conda:
@@ -163,7 +166,7 @@ elif config['maker_parallel'] == "mpi":
             """
             cd {params.run_dir}
             module load miniconda/miniconda2-4.5.4-MakerMPI
-            mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name} > {log.stdout} 2> {log.stderr}
+            mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
             if [ -f {log.index} ] && [ `grep STARTED {log.index} | wc -l` == `grep FINISHED {log.index} | wc -l` ]; then touch {output}; fi
             """
     
@@ -172,9 +175,6 @@ elif config['maker_parallel'] == "mpi":
             config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover_master_datastore_index.log"
         output:
             config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output/{sample}_genome_liftover.all.gff"
-        log:
-            stdout=config["out_dir"] + "/logs/{sample}_create_liftover_gff_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_create_liftover_gff_" + str(time()) + ".err"
         threads:
             1
         params:
@@ -182,13 +182,14 @@ elif config['maker_parallel'] == "mpi":
             ppn=1,
             liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/{sample}_genome_liftover.maker.output",
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         conda:
             "conda_env/maker-env.yaml"
         shell:
             """
             cd {params.liftover_dir}
-            gff3_merge -d {input} -g -n > {log.stdout} 2> {log.stderr}
+            gff3_merge -d {input} -g -n
             """
 
 if config['maker_parallel'] == "chunks":
@@ -209,7 +210,8 @@ if config['maker_parallel'] == "chunks":
             external_gff=config['external_gff'],
             queue=config['queue'],
             priority=config['priority'],
-            sample="{sample}"
+            sample="{sample}",
+            logs_dir=LOGS_DIR
         shell:
             """               
             echo "name: MAKER_wrapper" >> {output}
@@ -221,6 +223,7 @@ if config['maker_parallel'] == "chunks":
             echo "queue: {params.queue}" >> {output}
             echo "priority: {params.priority}" >> {output}
             echo "sample: {params.sample}" >> {output}
+            echo "logs_dir: {params.logs_dir}" >> {output}
             echo config_kv_pairs: est={params.transcripts} protein={params.proteins} pred_gff={input.liftover_gff} >> {output}
             """
 
@@ -262,16 +265,13 @@ elif config['maker_parallel'] == "mpi":
             bopts=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_bopts.ctl",
             opts=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_opts.ctl",
             exe=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker_exe.ctl"
-        log:
-            stdout=config["out_dir"] + "/logs/{sample}_prep_maker_annotation_configs_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_prep_maker_annotation_configs_" + str(time()) + ".err"
         run:
-            shell("cp {params.templates}/maker_bopts.ctl {output.bopts} > {log.stdout} 2> {log.stderr}")
-            shell("cp {params.templates}/maker_exe.ctl {output.exe} >> {log.stdout} 2>> {log.stderr}")
+            shell("cp {params.templates}/maker_bopts.ctl {output.bopts}")
+            shell("cp {params.templates}/maker_exe.ctl {output.exe}")
             if params.external_gff:
-                shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff},{params.external_gff}|' {params.templates}/maker_opts.ctl > {output.opts} 2>> {log.stderr}")
+                shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff},{params.external_gff}|' {params.templates}/maker_opts.ctl > {output.opts}")
             else:
-                shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff}|' {params.templates}/maker_opts.ctl > {output.opts} 2>> {log.stderr}")
+                shell("sed -e 's|<genome_fasta>|{input.genome}|' -e 's|<transcripts_fasta>|{params.transcripts}|' -e 's|<proteins_fasta>|{params.proteins}|' -e 's|<gene_models_gff>|{input.liftover_gff}|' {params.templates}/maker_opts.ctl > {output.opts}")
     
     rule maker_annotation:
         input:
@@ -282,15 +282,14 @@ elif config['maker_parallel'] == "mpi":
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/annotation.done"
         log:
             index=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log",
-            stdout=config["out_dir"] + "/logs/{sample}_maker_annotation_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_maker_annotation_" + str(time()) + ".err"
         params:
             run_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
             base_name="{sample}",
             nodes=config['nodes'],
             ppn=config['ppn'],
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         threads:
             config['ppn'] * config['nodes']
     #    conda:
@@ -299,7 +298,7 @@ elif config['maker_parallel'] == "mpi":
             """
             cd {params.run_dir}
             module load miniconda/miniconda2-4.5.4-MakerMPI
-            mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name} > {log.stdout} 2> {log.stderr}
+            mpirun -n {threads} -env I_MPI_FABRICS tcp maker -base {params.base_name}
             if [ -f {log.index} ] && [ `grep STARTED {log.index} | wc -l` == `grep FINISHED {log.index} | wc -l` ]; then touch {output}; fi
             """
     rule create_annotation_gff:
@@ -308,9 +307,6 @@ elif config['maker_parallel'] == "mpi":
         output:
             full_gff=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.all.convert.gff",
             genes_gff=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.genes.convert.gff"
-        log:
-            stdout=config["out_dir"] + "/logs/{sample}_create_annotation_gff_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_create_annotation_gff_" + str(time()) + ".err"
         threads:
             1
         params:
@@ -318,14 +314,15 @@ elif config['maker_parallel'] == "mpi":
             ppn=1,
             annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         conda:
             "conda_env/maker-env.yaml"
         shell:
             """
             cd {params.annotation_dir}/{sample}.maker.output
-            gff3_merge -d {input} -n -s > {output.full_gff} 2> {log.stderr}
-            gff3_merge -d {input} -n -g -s > {output.genes_gff} 2>> {log.stderr}
+            gff3_merge -d {input} -n -s > {output.full_gff}
+            gff3_merge -d {input} -n -g -s > {output.genes_gff}
             """
     
     rule create_annotation_fasta:
@@ -333,9 +330,6 @@ elif config['maker_parallel'] == "mpi":
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/{sample}.maker.output/{sample}_master_datastore_index.log"
         output:
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.fasta"
-        log:
-            stdout=config["out_dir"] + "/logs/{sample}_create_annotation_fasta_" + str(time()) + ".out",
-            stderr=config["out_dir"] + "/logs/{sample}_create_annotation_fasta_" + str(time()) + ".err"
         threads:
             1
         params:
@@ -343,13 +337,14 @@ elif config['maker_parallel'] == "mpi":
             ppn=1,
             annotation_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation",
             queue=config['queue'],
-            priority=config['priority']
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
         conda:
             "conda_env/maker-env.yaml"
         shell:
             """
             cd {params.annotation_dir}/{sample}.maker.output
-            fasta_merge -d {input} > {log.stdout} 2> {log.stderr}
+            fasta_merge -d {input}
             ln {sample}.all.maker.proteins.fasta {output}
             """
 
@@ -358,19 +353,17 @@ rule clean_proteins_fasta:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.clean.fasta"
-    log:
-        stdout=config["out_dir"] + "/logs/{sample}_clean_proteins_fasta_" + str(time()) + ".out",
-        stderr=config["out_dir"] + "/logs/{sample}_clean_proteins_fasta_" + str(time()) + ".err"
     params:
         nodes=1,
         ppn=1,
         clean_proteins_fasta_script=config['clean_proteins_fasta_script'],
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     conda:
         "conda_env/biopython.yaml"
     shell:
-        "python {params.clean_proteins_fasta_script} {input} {output} > {log.stdout} 2> {log.stderr}"
+        "python {params.clean_proteins_fasta_script} {input} {output}"
 
 
 rule proteins_busco:
@@ -378,9 +371,6 @@ rule proteins_busco:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/run_BUSCO/full_table_BUSCO.tsv"
-    log:
-        stdout=config["out_dir"] + "/logs/{sample}_proteins_busco_" + str(time()) + ".out",
-        stderr=config["out_dir"] + "/logs/{sample}_proteins_busco_" + str(time()) + ".err"
     params:
         busco_exe=config['busco_exe'],
         busco_set=config['busco_set'],
@@ -390,7 +380,8 @@ rule proteins_busco:
         nodes=1,
         ppn=config['ppn'],
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     threads:
         config['ppn']
     shell:
@@ -398,7 +389,7 @@ rule proteins_busco:
         export AUGUSTUS_CONFIG_PATH={params.augustus_conf}
         export PATH={params.augustus_bin}:$PATH
         cd {params.out_dir}
-        python {params.busco_exe} --in {input} --out BUSCO --lineage_path {params.busco_set} --cpu {threads} --mode proteins -f > {log.stdout} 2> {log.stderr}
+        python {params.busco_exe} --in {input} --out BUSCO --lineage_path {params.busco_set} --cpu {threads} --mode proteins -f
         """
 
 rule proteins_interproscan:
@@ -406,20 +397,18 @@ rule proteins_interproscan:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/interProScan/{sample}.interProScan.tsv"
-    log:
-        stdout=config["out_dir"] + "/logs/{sample}_proteins_interproscan_" + str(time()) + ".out",
-        stderr=config["out_dir"] + "/logs/{sample}_proteins_interproscan_" + str(time()) + ".err"
     params:       
         nodes=1,
         ppn=1,
         ips_dir=config["out_dir"] + "/per_sample/{sample}/interProScan/",
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     shell:
         """
         module load interproscan/5.32-71
         module load java/jdk1.8.25
-        interproscan.sh -i {input} -b {params.ips_dir}/{wildcards.sample}.interProScan -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T {params.ips_dir} > {log.stdout} 2> {log.stderr}
+        interproscan.sh -i {input} -b {params.ips_dir}/{wildcards.sample}.interProScan -t p -dp -pa -appl Pfam,ProDom,SuperFamily,PIRSF --goterms --iprlookup -f tsv,gff3 -T {params.ips_dir}
         """
 
 rule proteins_blast:
@@ -427,9 +416,6 @@ rule proteins_blast:
         config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.proteins.clean.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/Blast/{sample}.blast.tsv"
-    log:
-        stdout=config["out_dir"] + "/logs/{sample}_proteins_blast_" + str(time()) + ".out",
-        stderr=config["out_dir"] + "/logs/{sample}_proteins_blast_" + str(time()) + ".err"
     conda:
         "conda_env/blast.yaml"
     params:
@@ -437,12 +423,13 @@ rule proteins_blast:
         ppn=config['ppn'],
         blast_qa_db=config['blast_qa_db'],
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     threads:
         config['ppn']
     shell:
         """
-        blastp -query {input} -db {params.blast_qa_db} -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads {threads} -max_target_seqs 1 -out {output} > {log.stdout} 2> {log.stderr}
+        blastp -query {input} -db {params.blast_qa_db} -evalue 1e-5 -outfmt \"6 qseqid sseqid pident qlen length mismatch gapopen evalue bitscore qcovs\" -num_threads {threads} -max_target_seqs 1 -out {output}
         """
 
 rule create_repeats_gff:
@@ -454,7 +441,8 @@ rule create_repeats_gff:
         nodes=1,
         ppn=config['ppn'],
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     shell:
         """
         awk '$2 == "repeatmasker" && $3 == "match"' {input} > {output}
@@ -469,18 +457,16 @@ rule annotation_qa:
         repeats_gff=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/maker.repeats.convert.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/Annotation_QA/{sample}.QA_report.tsv"
-    log:
-        stdout=config["out_dir"] + "/logs/{sample}_annotation_qa_" + str(time()) + ".out",
-        stderr=config["out_dir"] + "/logs/{sample}_annotation_qa_" + str(time()) + ".err"
     params:
         nodes=1,
         ppn=1,
         qa_script=config['qa_script'],
         queue=config['queue'],
-        priority=config['priority']
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
     conda:
         "conda_env/annotation_qa.yaml"
     shell:
         """
-        python {params.qa_script} {input.genes_gff} {output} --busco_result {input.busco} --blast_result {input.blast} --ips_result {input.ips} --repeats_gff {input.repeats_gff} > {log.stdout} 2> {log.stderr}
+        python {params.qa_script} {input.genes_gff} {output} --busco_result {input.busco} --blast_result {input.blast} --ips_result {input.ips} --repeats_gff {input.repeats_gff}
         """

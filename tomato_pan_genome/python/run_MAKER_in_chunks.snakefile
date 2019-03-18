@@ -67,7 +67,8 @@ rule run_maker:
         run_dir=config["out_dir"] + "/chunks/{chunk}",
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         cd {params.run_dir}
@@ -85,7 +86,8 @@ rule create_full_gff:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -101,7 +103,8 @@ rule create_genes_gff:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -116,7 +119,8 @@ rule merge_full_gff:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -131,7 +135,8 @@ rule merge_genes_gff:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -147,7 +152,8 @@ rule convert_gff_coords:
         coord_conversion_script = config["coord_conversion_script"],
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         "python {params.coord_conversion_script} {input} {output}"
 
@@ -163,7 +169,8 @@ rule create_fasta:
         out_dir = config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/",
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
@@ -181,7 +188,8 @@ rule merge_transcripts_fasta:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         cat {input} > {output}
@@ -195,7 +203,8 @@ rule merge_proteins_fasta:
     params:
         queue=config['queue'],
         priority=config['priority'],
-        sample=config['sample']
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
     shell:
         """
         cat {input} > {output}
