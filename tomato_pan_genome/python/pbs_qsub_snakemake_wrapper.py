@@ -26,5 +26,5 @@ else:
   base = "X"
 queue = job_properties["params"]["queue"]
 priority = job_properties["params"]["priority"]
-
-os.system("qsub -N {base}_{rule} -p {priority} -q {queue} -l nodes={nodes}:ppn={ppn} {script}".format(base=base, rule=rule_name, priority=priority, queue=queue, nodes=nodes, ppn=ppn, script=jobscript))
+logs_dir = job_properties["params"]["logs_dir"]
+os.system("qsub -N {base}_{rule} -p {priority} -q {queue} -l nodes={nodes}:ppn={ppn} -o {logs_dir}/{base}_{rule}.out -e {logs_dir}/{base}_{rule}.err {script}".format(base=base, rule=rule_name, priority=priority, queue=queue, nodes=nodes, ppn=ppn, logs_dir=logs_dir, script=jobscript))
