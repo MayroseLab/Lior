@@ -138,7 +138,7 @@ class SampleInfoReader(object):
         return sample_dict
         
     @staticmethod
-    def sample_table_reader(filename, delimiter='\t', key_name='sample', req_col_names=['path'], opt_col_names=[]):
+    def sample_table_reader(filename, delimiter='\t', key_name='sample', col_names=['path'], opt_col_names=[]):
         """
             Reads a table from a file with a header
             One of the columns will be used as the main key and must match the argument key_name.
@@ -158,7 +158,7 @@ class SampleInfoReader(object):
             key_idx=key_match[0]
             # find the obligatory columns
             col_strs=[]
-            for col in req_col_names:
+            for col in col_names:
                 # find the matched col name
                 col_match = header_matcher[col.lower()]
                 if len(col_match)!=1:
