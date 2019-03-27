@@ -138,12 +138,12 @@ class SampleInfoReader(object):
         return sample_dict
         
     @staticmethod
-    def sample_table_reader(filename, delimiter='\t', key_name='sample', col_names=['path']):
+    def sample_table_reader(filename, delimiter='\t', key_name='sample', req_col_names=['path'], opt_col_names=[]):
         """
             Reads a table from a file with a header
             One of the columns will be used as the main key and must match the argument key_name.
             The output is exported to a dict with key_name as the main key. 
-            The other given columns will be used in a nested dictionary as follows:
+            The other given columns (required or optional) will be used in a nested dictionary as follows:
             D[key1][col1]=val11
             D[key1][col2]=val12, etc.
         """
@@ -158,12 +158,18 @@ class SampleInfoReader(object):
             key_idx=key_match[0]
             # find the obligatory columns
             col_strs=[]
-            for col in col_names:
+            for col in req_col_names:
                 # find the matched col name
                 col_match = header_matcher[col.lower()]
                 if len(col_match)!=1:
                     raise Exception('Error: One of the columns in the input file must include the word %s!'%format(col))
                 col_strs.append(col_match[0])
+            # add optional columns (if any)
+            for col in opt_col_names:
+                # find the matched col name
+                col_match = header_matcher[col.lower()]
+                if len(col_match)==1:
+                    col_strs.append(col_match[0])
             # create the dict
             fileinfo_dict={}
             for row in reader:
