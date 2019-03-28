@@ -27,7 +27,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_maker_liftover_configs, prep_maker_annotation_configs, maker_liftover_chunks, maker_annotation_chunks, prep_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml
+localrules: all, prep_maker_liftover_configs, prep_maker_annotation_configs, maker_liftover_chunks, maker_annotation_chunks, prep_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, prep_chunks_tsv_pred_gff
 
 rule all:
     input:
@@ -194,9 +194,21 @@ elif config['maker_parallel'] == "mpi":
 
 if config['maker_parallel'] == "chunks":
 
+    rule prep_chunks_tsv_pred_gff:
+        input:
+            config["out_dir"] + "/per_sample/{sample}/genome_chunks/chunks.tsv"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/chunks.tsv"
+        params:
+            liftover_dir=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/chunks"
+        shell:
+            """
+            echo -e "chunk\tpath\tpred_gff" > {output}
+            tail -n +2 {input} | awk '{{print $1"\t"$2"\t{params.liftover_dir}/"$1"/chunk.maker.output/chunk.genes.gff"}}' >> {output}
+            """
     rule prep_annotation_yaml:
         input:
-            chunks_tsv=config["out_dir"] + "/per_sample/{sample}/genome_chunks/chunks.tsv",
+            chunks_tsv=config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/chunks.tsv",
             liftover_gff=config["out_dir"] + "/per_sample/{sample}/MAKER_liftover/maker.genes.convert.gff"
         output:
             config["out_dir"] + "/per_sample/{sample}/MAKER_annotation/config.yaml"
@@ -224,7 +236,7 @@ if config['maker_parallel'] == "chunks":
             echo "priority: {params.priority}" >> {output}
             echo "sample: {params.sample}" >> {output}
             echo "logs_dir: {params.logs_dir}" >> {output}
-            echo config_kv_pairs: est={params.transcripts} protein={params.proteins} pred_gff={input.liftover_gff} >> {output}
+            echo config_kv_pairs: est={params.transcripts} protein={params.proteins} >> {output}
             """
 
     rule maker_annotation_chunks:
