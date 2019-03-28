@@ -4,7 +4,7 @@ from time import time
 def init(): 
     #load_info_file
     config['chunks_info'] = SampleInfoReader.sample_table_reader(filename=config['chunks_info_file'], 
-                delimiter='\t', key_name='chunk', col_names=['path'])
+                delimiter='\t', key_name='chunk', col_names=['path'], opt_col_names=['pred_gff'])
 
 init()
 
@@ -34,11 +34,11 @@ rule all:
         config["out_dir"] + "/maker.proteins.fasta"
 	
 def get_chunk(wildcards):
-    return config['chunks_info'][wildcards.chunk]['path']
+    return config['chunks_info'][wildcards.chunk]
 
 rule prep_maker_configs:
     input:
-        get_chunk
+        unpack(get_chunk)
     output:
         bopts=config["out_dir"] + "/chunks/{chunk}/maker_bopts.ctl",
         opts=config["out_dir"] + "/chunks/{chunk}/maker_opts.ctl",
@@ -47,12 +47,14 @@ rule prep_maker_configs:
         templates=config["config_templates"],
         config_edit_script=config["config_edit_script"],
         config_kv_pairs=config["config_kv_pairs"]
-    shell:
-        """
-        cp {params.templates}/maker_bopts.ctl {output.bopts} 
-        cp {params.templates}/maker_exe.ctl {output.exe}
-        python {params.config_edit_script} {params.templates}/maker_opts.ctl {output.opts} --edits genome={input} {params.config_kv_pairs}
-        """
+    run:
+        shell("cp {params.templates}/maker_bopts.ctl {output.bopts}")
+        shell("cp {params.templates}/maker_exe.ctl {output.exe}")
+        if hasattr(input,'pred_gff'):
+            shell("python {params.config_edit_script} {params.templates}/maker_opts.ctl {output.opts} --edits genome={input.path} pred_gff={input.pred_gff} {params.config_kv_pairs}")
+        else:
+            shell("python {params.config_edit_script} {params.templates}/maker_opts.ctl {output.opts} --edits genome={input.path} {params.config_kv_pairs}")
+        
 
 rule run_maker:
     input:
