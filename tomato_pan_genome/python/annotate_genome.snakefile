@@ -204,7 +204,7 @@ if config['maker_parallel'] == "chunks":
         shell:
             """
             echo -e "chunk\tpath\tpred_gff" > {output}
-            tail -n +2 {input} | awk '{{print $1"\t"$2"\t{params.liftover_dir}/"$1"/chunk.maker.output/chunk.genes.gff"}}' >> {output}
+            tail -n +2 {input} | awk '{{print $1"\t"$2"\t{params.liftover_dir}/"$1"/chunk.maker.output/chunk.genes.rename.gff"}}' >> {output}
             """
     rule prep_annotation_yaml:
         input:

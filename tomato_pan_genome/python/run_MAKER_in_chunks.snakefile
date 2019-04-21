@@ -113,9 +113,24 @@ rule create_genes_gff:
         gff3_merge -d {input.index} -n -g -s > {output}
         """
 
+rule rename_gff_features:
+    input:
+        config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.{type}.gff"
+    output:
+        config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.{type}.rename.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        sample=config['sample'],
+        logs_dir=config['logs_dir']
+    shell:
+        """
+        sed -e 's/Name=\([^;]\+\);/Name=\\1__{wildcards.chunk};/' -e 's/Name=\([^;]\+\)$/Name=\\1__{wildcards.chunk}/' {input} > {output}
+        """
+
 rule merge_full_gff:
     input:
-       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.gff", chunk=all_chunks)
+       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.rename.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.all.gff"
     params:
@@ -131,7 +146,7 @@ rule merge_full_gff:
 
 rule merge_genes_gff:
     input:
-       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.gff", chunk=all_chunks)
+       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.rename.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.genes.gff"
     params:
