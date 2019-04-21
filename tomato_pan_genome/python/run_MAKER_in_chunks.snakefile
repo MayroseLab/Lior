@@ -125,7 +125,7 @@ rule rename_gff_features:
         logs_dir=config['logs_dir']
     shell:
         """
-        sed -e 's/Name=\([^;]\+\);/Name=\\1__{wildcards.chunk};/' -e 's/Name=\([^;]\+\)$/Name=\\1__{wildcards.chunk}/' {input} > {output}
+        sed 's/ID=\([^;]\+\)\(.*\)Name=\([^;]\+\)/ID=\1\2Name=\3__\1/' {input} > {output}
         """
 
 rule merge_full_gff:
