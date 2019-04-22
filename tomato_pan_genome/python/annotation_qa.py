@@ -20,6 +20,20 @@ def mrna_chrom(gff):
         res[gene_name] = mrna_chrom
     return res
 
+def mrna_exons_count(gff):
+    """
+    Takes a gff3 object and returns a dictionary
+    of exons counts with mRNA names as keys.
+    """
+    res = {}
+    mrna_lines = [line for line in gff.lines if line['line_type'] == 'feature' and line['type'] == 'mRNA']
+    for mrna_line in mrna_lines:
+        gene_name = mrna_line['attributes']['Name']
+        mrna_qi = mrna_line['attributes']['_QI']
+        n_exons = mrna_qi.split('|')[6]
+        res[gene_name] = n_exons
+    return res
+
 def mrna_aed(gff):
     """
     Takes a gff3 object and returns a dictionary
@@ -144,7 +158,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     gff_obj = Gff3(args.genes_gff)
-    qa_methods = [("Chromosome",mrna_chrom,(gff_obj,)), ("AED",mrna_aed,(gff_obj,)), ("UTR",mrna_utr,(gff_obj,))]
+    qa_methods = [("Chromosome",mrna_chrom,(gff_obj,)), ("AED",mrna_aed,(gff_obj,)), ("Exons",mrna_exons_count,(gff_obj,)), ("UTR",mrna_utr,(gff_obj,))]
     if args.repeats_gff:
         rep_gff_obj = Gff3(args.repeats_gff)
         qa_methods.append(('Repeats',repeats_overlap,(gff_obj, rep_gff_obj)))
