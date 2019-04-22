@@ -31,7 +31,9 @@ rule all:
         config["out_dir"] + "/maker.all.convert.gff",
         config["out_dir"] + "/maker.genes.convert.gff",
         config["out_dir"] + "/maker.transcripts.fasta",
-        config["out_dir"] + "/maker.proteins.fasta"
+        config["out_dir"] + "/maker.proteins.fasta",
+        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.rename.gff", chunk=all_chunks),
+        expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.rename.gff", chunk=all_chunks)
 	
 def get_chunk(wildcards):
     return config['chunks_info'][wildcards.chunk]
@@ -125,12 +127,12 @@ rule rename_gff_features:
         logs_dir=config['logs_dir']
     shell:
         """
-        sed 's/ID=\([^;]\+\)\(.*\)Name=\([^;]\+\)/ID=\1\2Name=\3__\1/' {input} > {output}
+        sed 's/ID=\\([^;]\\+\\)\\(.*\\)Name=\\([^;]\\+\\)/ID=\\1\\2Name=\\3__\\1/' {input} > {output}
         """
 
 rule merge_full_gff:
     input:
-       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.rename.gff", chunk=all_chunks)
+       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.all.gff"
     params:
@@ -146,7 +148,7 @@ rule merge_full_gff:
 
 rule merge_genes_gff:
     input:
-       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.rename.gff", chunk=all_chunks)
+       expand(config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.gff", chunk=all_chunks)
     output:
         config["out_dir"] + "/maker.genes.gff"
     params:
