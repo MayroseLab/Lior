@@ -1,0 +1,16 @@
+name: variant_calling_pipeline
+# input
+samples_info_file: /groups/itay_mayrose/nosnap/liorglic/Projects/gene_content_evolution/python/variant_calling_pipeline_test/test_samples_info.tsv
+out_dir: /groups/itay_mayrose/nosnap/liorglic/Projects/gene_content_evolution/python/variant_calling_pipeline_test/RESULT
+reference_genome: /groups/itay_mayrose/nosnap/liorglic/Projects/gene_content_evolution/python/variant_calling_pipeline_test/S288C_reference_sequence_R64-2-1_20150113.fasta
+
+# data preprocessing
+
+# alignment
+
+# variant calling and filtration
+
+# environment
+queue: itaym
+priority: 1
+ppn: 10
