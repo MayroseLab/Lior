@@ -1,0 +1,15 @@
+# input
+samples_info_file: <path to input samples list>
+out_dir: <output directory for pipeline results>
+reference_genome: <fasta file against which variants will be called>
+
+# data preprocessing
+
+# alignment
+
+# variant calling and filtration
+
+# environment
+queue: <name of queue to send jobs to>
+priority: <queue job priority>
+ppn: <maximum processes per node>
