@@ -55,6 +55,8 @@ def get_sample_R1(wildcards):
 def get_sample_R2(wildcards):
     return config['samples_info'][wildcards.sample]['r2']
 
+def replace_extension(path,new_ext):
+    return '.'.join([os.path.splitext(path)[0]] + [new_ext])
 
 #rule download_fastq:
 #    input:
@@ -175,7 +177,7 @@ rule create_ref_dict:
     input:
         config["reference_genome"]
     output:
-        config["reference_genome"].replace('fasta','dict')
+        replace_extension(config["reference_genome"],'dict')
     params:
         nodes=1,
         ppn=1,
@@ -210,7 +212,7 @@ rule create_ref_faidx:
 rule call_variants:
     input:
         md_bam=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam",
-        ref_dict=config["reference_genome"].replace('fasta','dict'),
+        ref_dict=replace_extension(config["reference_genome"],'dict'),
         ref_faidx=config["reference_genome"] + '.fai',
         bai=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam.bai"
     output:
