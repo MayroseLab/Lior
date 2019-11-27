@@ -239,7 +239,7 @@ rule combine_GVCFs:
     params:
         reference_genome=config["reference_genome"],
         nodes=1,
-        ppn=config['ppn'],
+        ppn=1,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
