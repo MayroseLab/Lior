@@ -17,12 +17,11 @@ file for input parameters
 from snakemakeUtils import *
 import os
 from snakemake.remote.NCBI import RemoteProvider as NCBIRemoteProvider
-NCBI = NCBIRemoteProvider(email="liorglic@mail.tau.ac.il")
 
 def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
-                delimiter='\t', key_name='sample', col_names=['R1','R2'])
+                delimiter='\t', key_name='sample', col_names=['ena_ref'])
 init()
 
 LOGS_DIR = config['out_dir'] + "/logs"
@@ -48,35 +47,35 @@ localrules: all
 
 rule all:
     input:
-        config["out_dir"] + "/all_variants.vcf"
+        config["out_dir"] + "/all_variants_SNP.vcf"
 
-def get_sample_R1(wildcards):
-    return config['samples_info'][wildcards.sample]['r1']
-def get_sample_R2(wildcards):
-    return config['samples_info'][wildcards.sample]['r2']
+def get_sample(wildcards):
+    return config['samples_info'][wildcards.sample]['ena_ref']
 
 def replace_extension(path,new_ext):
     return '.'.join([os.path.splitext(path)[0]] + [new_ext])
 
-#rule download_fastq:
-#    input:
-#
-#    output:
-#        config["out_dir"] + "/per_sample/{sample}/{ENA_REF}_1.fastq.gz",
-#        config["out_dir"] + "/per_sample/{sample}/{ENA_REF}_2.fastq.gz"
-#    params:
-#        sample_out_dir=config["out_dir"] + "/per_sample/{sample}",
-#        nodes=1,
-#        ppn=1,
-#        queue=config['queue'],
-#        priority=config['priority'],
-#        logs_dir=LOGS_DIR
-#    conda:
-#        "variant_calling_pipeline_conda_envs/curl.yml"
-#    shell:
-#        """
-#        python ena-fast-download.py {params.ENA_REF} --output_directory {params.sample_out_dir}
-#        """
+pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
+
+rule download_fastq:
+    output:
+        config["out_dir"] + "/per_sample/{sample}/{ena_ref}_1.fastq.gz",
+        config["out_dir"] + "/per_sample/{sample}/{ena_ref}_2.fastq.gz"
+    params:
+        sample_out_dir=config["out_dir"] + "/per_sample/{sample}",
+        ena_ref=get_sample,
+        download_script=pipeline_dir + '/ena-fast-download.py',
+        nodes=1,
+        ppn=1,
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        "variant_calling_pipeline_conda_envs/curl.yml"
+    shell:
+        """
+        python {params.download_script} {params.ena_ref} --output_directory {params.sample_out_dir}
+        """
 
 
 rule index_ref_genome:
@@ -99,11 +98,11 @@ rule index_ref_genome:
 
 rule map_to_ref:
     input:
-        R1=get_sample_R1,
-        R2=get_sample_R2,
+        R1=config["out_dir"] + "/per_sample/{sample}/{ENA_REF}_1.fastq.gz",
+        R2=config["out_dir"] + "/per_sample/{sample}/{ENA_REF}_2.fastq.gz",
         index=config["reference_genome"] + '.bwt'
     output:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sam"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sam"
     params:
         reference_genome=config["reference_genome"],
         nodes=1,
@@ -120,9 +119,9 @@ rule map_to_ref:
 
 rule sam_to_sorted_bam:
     input:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sam"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sam"
     output:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.bam"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.bam"
     params:
         nodes=1,
         ppn=config['ppn'],
@@ -138,10 +137,10 @@ rule sam_to_sorted_bam:
 
 rule mark_duplicates:
     input:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.bam"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.bam"
     output:
-        md_bam=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam",
-        md_stats=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.stats"
+        md_bam=config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.bam",
+        md_stats=config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.stats"
     params:
         nodes=1,
         ppn=1,
@@ -157,9 +156,9 @@ rule mark_duplicates:
 
 rule index_bam:
     input:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.bam"
     output:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam.bai"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.bam.bai"
     params:
         nodes=1,
         ppn=1,
@@ -211,12 +210,12 @@ rule create_ref_faidx:
 
 rule call_variants:
     input:
-        md_bam=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam",
+        md_bam=config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.bam",
         ref_dict=replace_extension(config["reference_genome"],'dict'),
         ref_faidx=config["reference_genome"] + '.fai',
-        bai=config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.sort.md.bam.bai"
+        bai=config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.sort.md.bam.bai"
     output:
-        config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.g.vcf"
+        config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.g.vcf"
     params:
         reference_genome=config["reference_genome"],
         nodes=1,
@@ -233,7 +232,7 @@ rule call_variants:
 
 rule combine_GVCFs:
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/{sample}_vs_ref.g.vcf", sample=config['samples_info'])
+        expand(config["out_dir"] + "/per_sample/{sample}/{sample}_{ENA_REF}_vs_ref.g.vcf", zip, sample=config['samples_info'].keys(), ENA_REF=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_variants.g.vcf"
     params:
