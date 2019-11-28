@@ -269,3 +269,21 @@ rule genotype_samples:
         """
         gatk GenotypeGVCFs -V {input} -O {output} -R {params.reference_genome}
         """
+
+rule extract_SNPs:
+    input:
+        config["out_dir"] + "/all_variants.vcf"
+    output:
+        config["out_dir"] + "/all_variants_SNP.vcf"
+    params:
+        nodes=1,
+        ppn=1,
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        "variant_calling_pipeline_conda_envs/gatk.yml"
+    shell:
+        """
+        gatk SelectVariants --select-type-to-include SNP -V {input} -O {output}
+        """
