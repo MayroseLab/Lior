@@ -247,7 +247,8 @@ rule combine_GVCFs:
         "variant_calling_pipeline_conda_envs/gatk.yml"
     shell:
         """
-        gatk CombineGVCFs -V {input} -O {output} -R {params.reference_genome} 
+        files=`echo {input} | sed 's/ / -V /g'`
+        gatk CombineGVCFs -V $files -O {output} -R {params.reference_genome} 
         """
 
 rule genotype_samples:
@@ -258,7 +259,7 @@ rule genotype_samples:
     params:
         reference_genome=config["reference_genome"],
         nodes=1,
-        ppn=config['ppn'],
+        ppn=1,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
