@@ -151,7 +151,7 @@ rule mark_duplicates:
         "variant_calling_pipeline_conda_envs/gatk.yml"
     shell:
         """
-        gatk MarkDuplicates -I {input} -O {output.md_bam} -M {output.md_stats}
+        gatk --java-options "-Xmx4G" MarkDuplicates -I {input} -O {output.md_bam} -M {output.md_stats}
         """
 
 rule index_bam:
@@ -227,7 +227,7 @@ rule call_variants:
         "variant_calling_pipeline_conda_envs/gatk.yml"
     shell:
         """
-        gatk HaplotypeCaller -I {input.md_bam} -O {output} -R {params.reference_genome} -ERC GVCF
+        gatk --java-options "-Xmx4G" HaplotypeCaller -I {input.md_bam} -O {output} -R {params.reference_genome} -ERC GVCF
         """
 
 rule combine_GVCFs:
