@@ -13,3 +13,4 @@ reference_genome: <fasta file against which variants will be called>
 queue: <name of queue to send jobs to>
 priority: <queue job priority>
 ppn: <maximum processes per node>
+gatk_ram: <maximum RAM used by GATK jobs. Use java-style notation like 2g or 500m, not MB or GB>

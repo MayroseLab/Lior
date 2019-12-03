@@ -14,3 +14,4 @@ reference_genome: /groups/itay_mayrose/nosnap/liorglic/Projects/gene_content_evo
 queue: itaym
 priority: 1
 ppn: 10
+gatk_ram: 2G
