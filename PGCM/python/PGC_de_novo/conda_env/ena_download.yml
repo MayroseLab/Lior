@@ -1,0 +1,6 @@
+name: ena_download 
+channels:
+  - annacona
+dependencies:
+  #- python=3.7.3
+  - curl
