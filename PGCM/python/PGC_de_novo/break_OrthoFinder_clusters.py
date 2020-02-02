@@ -1,5 +1,42 @@
 """
+This script parses orthoFinder2 (OF) outputs in order
+to break orthogroups into smaller clusters represnting
+single genes. In such clusters, each gene is
+orthologous to all other genes and in most cases
+there is only one gene per genome.
+The method used is a variant of the Maximum Weight
+Orthogonal Partition (MWOP) algorithm decribed in:
+DOI:10.1007/978-3-642-23038-7_30
+The script uses the orthogroups in the Orthogroups.csv
+OF output as initial orthogroups. The rooted species tree
+constructed by OF is also used to guide the order in
+which the algorithm proceeds - in every iteration the closest
+genomes (based on branch lengths) are matched. For each
+orthogroup, orthology relations inferred by OF are used to
+indicate graph edges, with the weight corresponding to a Blast
+stat selected by the user (usually bitscore or pident).
+If there are multiple Blast matches between two proteins,
+the one with maximum score (bitscore/pident) is selected.
+The edge weight is calculated as the mean of scores in both
+directions - (prot1->prot2 + prot2->prot1)/2.
+Data are saved and processed in a SQLite3 DB.
+In our implementation, we define gene copies as paralogs
+which are sister taxa within the cluster gene tree. This
+means that only very recent gene duplications generate
+gene copies, which are kept within the same cluster.
+Older duplications result in different genes, divided
+to several clusters.
 
+Script arguments:
+1. Orthofinder dir - path to directory where OF results
+   reside.
+   NOTE: the script expects the Results_<X> dir produced
+         by Orthofinder 2.3.8
+2. Weight field - what stat should be used to assign
+   edge weights. Usually bitscore or pident.
+3. Output file - path to output file. The format is
+   one line per cluster, with cluster members separated
+   by tabs.
 """
 
 import networkx as nx
@@ -11,7 +48,6 @@ import pandas as pd
 import numpy as np
 from ete3 import Tree
 from itertools import product, chain
-from collections import Counter
 
 def tidy_split(df, column, sep='|', keep=False):
   """
@@ -96,8 +132,8 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   cur.execute("CREATE TABLE blast_seqnames_genomenames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast_seqnames b INNER JOIN (SELECT genomeid AS qgenomeid, genomename AS qgenomename FROM genomenames) s ON b.qgenomeid = s.qgenomeid) b INNER JOIN (SELECT genomeid AS sgenomeid, genomename AS sgenomename FROM genomenames) s ON b.sgenomeid = s.sgenomeid")
 
   # Load orthologs data
-  orthologues_dir = [os.path.join(orthofinder_dir,d,'Orthologues') for d in os.listdir(orthofinder_dir)if d.startswith('Orthologues_')][0]
-  orthologues_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(orthologues_dir) for f in fn if 'Orthologues_' in dp and 'Xenologues' not in dp]
+  orthologues_dir = os.path.join(orthofinder_dir, "Orthologues")
+  orthologues_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(orthologues_dir) for f in fn if 'Orthologues_' in dp ]
   for f in orthologues_files:
     df = pd.read_csv(f, sep='\t')
     df_t = df.iloc[:,[0,1,2]]
@@ -206,14 +242,17 @@ class HomologyCluster(nx.Graph):
       if len(genes_list) > 1:
         self.has_paralogs = True
       for gene in genes_list:
-        full_name = "%s_%s" %(genome, gene)
-        full_name = full_name.replace('QI_','QI:').replace('AED_','AED:')
-        self.add_node(full_name, genome=genome, gene_name=gene)
+        self.add_node(gene, genome=genome, gene_name=gene)
     self.gene_tree = None
     if gene_tree:
-      self.gene_tree = Tree(gene_tree, format=1)
-      for l in self.gene_tree:
-        l.name = l.name.replace('QI_','QI:').replace('AED_','AED:').replace('_maker_proteins','.maker.proteins')
+      gene_tree = Tree(gene_tree, format=1)
+      # remove genome names from tree leaves
+      for leaf in gene_tree:
+        for n in self.nodes:
+          if leaf.name.endswith(n):
+            leaf.name = n
+            break
+      self.gene_tree = gene_tree
 
   def add_edges(self, db_con):
     """
@@ -227,10 +266,10 @@ class HomologyCluster(nx.Graph):
     """
     table_name = "blast_orthologs_bidirect"
     df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), con)
-    df['prot1_full'] = df['prot1_genome'] + '_' + df['prot1']
-    df['prot2_full'] = df['prot2_genome'] + '_' + df['prot2']
-    df.apply(lambda g: self.add_edge(g['prot1_full'], g['prot2_full'], weight=g['weight']), axis=1)
-    df.to_csv('tmp.tsv', sep='\t')
+    #df['prot1_full'] = df['prot1_genome'] + '_' + df['prot1']
+    #df['prot2_full'] = df['prot2_genome'] + '_' + df['prot2']
+    #df.apply(lambda g: self.add_edge(g['prot1_full'], g['prot2_full'], weight=g['weight']), axis=1)
+    df.apply(lambda g: self.add_edge(g['prot1'], g['prot2'], weight=g['weight']), axis=1)
 
   def break_mwop(self, tree, allow_gene_copies=False):
     """
@@ -249,10 +288,6 @@ class HomologyCluster(nx.Graph):
     """
     eps = 0.001
     tree = tree.copy()
-    # find max number of genes in one genome
-    #counts = [self.nodes[g]['genome'] for g in self.nodes]
-    #counts = Counter(counts)
-    #nm = counts.most_common(1)[0][1]
 
     # initialize gene sets
     genomes = [self.nodes[g]['genome'] for g in self.nodes]
@@ -370,16 +405,15 @@ if __name__ == "__main__":
   con = sql.connect(db_path)
 
   # species tree
-  orthologues_dir = [os.path.join(orthofinder_dir,d) for d in os.listdir(orthofinder_dir)if d.startswith('Orthologues_')][0]
-  tree_file = os.path.join(orthologues_dir, 'SpeciesTree_rooted_node_labels.txt')
+  tree_file = os.path.join(orthofinder_dir, "Species_Tree", 'SpeciesTree_rooted_node_labels.txt')
   tree = Tree(tree_file, format=1)
 
   # Calculate orthogroups
-  orthogroups_file = os.path.join(orthofinder_dir, 'Orthogroups.csv')
-  gene_trees_dir = [os.path.join(orthofinder_dir,d,"Recon_Gene_Trees") for d in os.listdir(orthofinder_dir) if d.startswith('Orthologues_')][0]
+  orthogroups_file = os.path.join(orthofinder_dir, 'Orthogroups', 'Orthogroups.tsv')
+  gene_trees_dir = os.path.join(orthofinder_dir, 'Resolved_Gene_Trees')
 
   with open(orthogroups_file) as f, open(orthogroups_out, 'w') as fo:
-    genomes = f.readline().strip().split('\t')
+    genomes = f.readline().strip().split('\t')[1:]
     for line in f:
       og = line.split('\t')[0]
       print(og)
@@ -394,8 +428,6 @@ if __name__ == "__main__":
         orthogroups = list(orthogroups.values())[0]
       else:
         orthogroups = [list(hc.nodes)]
-      #if og == "OG0002703":
-      #  print(orthogroups)
       for og_break in orthogroups:
         if len(og_break) > 0:
           print('\t'.join(og_break), file=fo)

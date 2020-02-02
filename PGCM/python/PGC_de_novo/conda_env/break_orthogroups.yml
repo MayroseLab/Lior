@@ -6,4 +6,3 @@ dependencies:
   - networkx
   - pandas
   - ete3
-  - pygraphviz
