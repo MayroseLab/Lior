@@ -84,7 +84,7 @@ rule run_maker:
         """
         cd {params.run_dir}
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        maker -b chunk
+        maker -b chunk -fix_nucleotides
         if [ -f {log.index} ] && (( `grep STARTED {log.index} | wc -l` <= `grep FINISHED {log.index} | wc -l` )); then touch {output}; fi
         """
 
