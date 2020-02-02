@@ -50,9 +50,11 @@ localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_lift
 
 rule all:
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+#        expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+#        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+#        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
+        
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -397,7 +399,8 @@ rule maker_annotation:
     input:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
     output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
     params:
         run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
         queue=config['queue'],
@@ -413,13 +416,45 @@ rule maker_annotation:
         """
         cd {params.annotation_dir}
         snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
-            """
+        """
+
+rule rename_genes:
+    """
+    Assign genes short, unique names (gff and fasta).
+    Names consist of the genome name and a unique ID.
+    """
+    input:
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.raw_names.fasta",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.raw_names.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
+    params:
+        out_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/",
+        create_fasta_map_script=os.path.join(pipeline_dir,"create_fasta_map.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        module load miniconda/miniconda2-4.5.4-MakerMPI
+        maker_map_ids --prefix {wildcards.sample}_ --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
+        cp {input.gff} {params.out_dir}/maker.genes.raw_names.gff
+        map_gff_ids {params.out_dir}/gff.map {input.gff}
+        python {params.create_fasta_map_script} {input.gff} > {params.out_dir}/fasta.map
+        cp {input.fasta} {params.out_dir}/maker.proteins.raw_names.fasta
+        map_fasta_ids {params.out_dir}/fasta.map {input.fasta}
+        """
+
 rule filter_annotation:
     """
     Remove unreliable annotations
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta"
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
     params:
@@ -432,7 +467,28 @@ rule filter_annotation:
         CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
-        python {params.filter_script} {input} {params.max_aed} {output}
+        python {params.filter_script} {input.fasta} {params.max_aed} {output}
+        """
+
+rule prevent_duplicate_names:
+    """
+    If for any reason the filtered
+    proteins contain duplicate names,
+    prevent this by renaming. This
+    helps prevent problems in next steps
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
+    params:
+        dupl_script=utils_dir + '/prevent_duplicate_names.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.dupl_script} {input} {output}
         """
 
 rule annotation_busco:
@@ -440,7 +496,7 @@ rule annotation_busco:
     Run BUSCO on filtered annotation proteins
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt"
     params:
@@ -456,4 +512,97 @@ rule annotation_busco:
         """
         cd {params.annotation_dir}
         run_busco -i {input} -o BUSCO -m proteins -l {params.busco_set} -c {params.ppn} -f
+        """
+
+rule prep_for_orthofinder:
+    """
+    Prepare orthofinder input - create
+    hard links from all proteins fasta
+    files to a single directory, with
+    genome names. Also, simplify fasta
+    records names.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta"
+    params:
+        of_dir=config["out_dir"] + "/all_samples/orthofinder",
+        ref_name=config['ref_name'],
+        ref_proteins=config['ref_proteins'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed 's/ protein .*//' {input} > {output}
+        if [ ! -f "{params.of_dir}/{params.ref_name}.fasta" ]; then
+            cp {params.ref_proteins} {params.of_dir}/{params.ref_name}.fasta
+        fi
+        """
+
+rule get_ref_proteins:
+    """
+    Copy reference proteins to orthofinder dir
+    """
+    input:
+        config['ref_proteins'],
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cp {input} {output}
+        """
+
+rule orthofinder:
+    """
+    Run OrthoFinder2 on all proteins
+    from all annotated genomes to get
+    initial orthogroups
+    """
+    input:
+        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups/Orthogroups.tsv"
+    params:
+        orthofinder_dir=config["out_dir"] + "/all_samples/orthofinder",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/orthofinder2.yml'
+    shell:
+        """
+        orthofinder -t {params.ppn} -a {params.ppn} -S diamond -n orthofinder -f {params.orthofinder_dir}
+        """
+
+rule break_orthogroups_MWOP:
+    """
+    Use orthofinder's ouput and further
+    break orthogroups into smaller
+    clusters representing single genes.
+    This is done using the Maximum Weight
+    Orthogonal Partitions (MWOP) algorithm.
+    """
+    input:
+        config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups/Orthogroups.tsv"
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
+    params:
+        orthofinder_dir=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder",
+        mwop_script=os.path.join(pipeline_dir,"break_OrthoFinder_clusters.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/break_orthogroups.yml'
+    shell:
+        """
+        python {params.mwop_script} {params.orthofinder_dir} bitscore {output}
         """
