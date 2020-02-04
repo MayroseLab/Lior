@@ -21,12 +21,14 @@ utils_dir = os.path.dirname(pipeline_dir)
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
+from collections import OrderedDict
 
 def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
                 delimiter='\t', key_name='sample', col_names=['ena_ref'])
 init()
+config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = pipeline_dir + "/conda_env"
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/annotation_pipeline'
@@ -50,11 +52,12 @@ onerror:
 
 localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml 
 
+n_samples = len(config['samples_info'])
+last_sample = list(config['samples_info'].keys())[-1]
+last_sample_ena = config['samples_info'][last_sample]['ena_ref']
 rule all:
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -242,27 +245,57 @@ rule assembly_quast:
         """
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
-def recurse_sample(wcs):
-    n = int(wcs.n)
-    if n == 1:
-        return config['reference_genome']
-    elif n > 1:
-        return config["out_dir"] + 'all_samples/non_reference/sample_%d/non_ref_contigs.fasta' % n-1
-    else:
-        raise ValueError("loop numbers must be 1 or greater: received %s" % wcs.n)
 
-rule collect_non_ref_sequences:
+#def recurse_sample(wcs):
+#    n = int(wcs.n)
+#    if n == 1:
+#        ret = config['reference_genome']
+#    elif n > 1:
+#        ret = config["out_dir"] + '/all_samples/non_reference/%s_%s_%s/non_ref_contigs.fasta' % (wcs.sample, wcs.ena_ref, str(n-1))
+#    else:
+#        raise ValueError("loop numbers must be 1 or greater: received %s" % wcs.n)
+#    return ret
+#
+#rule map_to_pan:
+#    """
+#    Collect the non-reference part of the
+#    pan genome by iteratively mapping asembled
+#    contigs to the reference
+#    """
+#    input:
+#        ref=recurise_sample,
+#        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+#    output:
+#        map_sam=config["out_dir"] + '/all_samples/non_reference/{sample}_{ena_ref}_{n}/contigs_map.sam',
+#        non_ref=config["out_dir"] + '/all_samples/non_reference/{sample}_{ena_ref}_{n}/non_ref_contigs.fasta'
+#    params:
+#        min_length=config['min_length'],
+#        extract_insert_script=pipeline_dir + '/extract_insertions_from_sam.py',
+#        queue=config['queue'],
+#        priority=config['priority'],
+#        logs_dir=LOGS_DIR,
+#        ppn=config['ppn']
+#    conda:
+#        CONDA_ENV_DIR + '/map_to_pan.yml'
+#    shell:
+#        """
+#        minimap2 -ax asm5 -t {params.ppn} {input.contigs} {input.ref} > {output.map_sam}
+#        samtools view -f 4 tmp/map5.sam | awk 'length($10) > {params.min_length}' | samtools fasta - > {output.non_ref}
+#        python {params.extract_insert_script} {output.map_sam} {params.min_length} >> {output.non_ref}
+#        """
+
+rule map_to_ref:
     """
-    Collect the non-reference part of the
-    pan genome by iteratively mapping asembled
-    contigs to the reference
+    Map contigs from each genome assembly
+    to reference in order to detect novel
+    sequences
     """
     input:
-        ref=recurse_sample,
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
-        config["out_dir"] + 'all_samples/non_reference/sample_{n}/non_ref_contigs.fasta'
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_vs_ref.sam"
     params:
+        ref_genome=config['reference_genome'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -271,8 +304,108 @@ rule collect_non_ref_sequences:
         CONDA_ENV_DIR + '/minimap2.yml'
     shell:
         """
-        
+        minimap2 -ax asm5 -t {params.ppn} {params.ref_genome} {input} > {output}
         """
 
-       
+rule extract_unmapped:
+    """
+    Extract contigs not mapped to ref
+    and convert to fasta
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_vs_ref.sam"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_unmapped.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools fasta -f 4 {input} > {output}
+        """
 
+rule extract_inserts:
+    """
+    Extract large insert sequences
+    from mapped contigs 
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_vs_ref.sam"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_inserts.fasta"
+    params:
+        min_length=config['min_length'],
+        extract_insert_script=pipeline_dir + '/extract_insertions_from_sam.py',        
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/pysam.yml'
+    shell:
+        """
+        python {params.extract_insert_script} {input} {params.min_length} > {output}
+        """
+
+rule prep_non_ref:
+    """
+    Combine unmapped and insert sequences
+    and add the sample name to each fasta
+    record.
+    """
+    input:
+        unmapped=config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_unmapped.fasta",
+        insert=config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/contigs_filter_inserts.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/non_ref.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        cat {input.unmapped} {input.insert} | sed 's/>/>{wildcards.sample}_/' > {output}
+        """
+
+rule collect_all_non_ref:
+    """
+    Concat all (redundant) non-ref
+    sequences into one fasta file
+    """
+    input:
+        expand(config["out_dir"] + "/per_sample/{sample}/non_ref_{ena_ref}/non_ref.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+    output:
+        config["out_dir"] + "/all_samples/non_ref/redun_non_ref_contigs.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        cat {input} > {output}
+        """
+
+rule remove_redundant:
+    """
+    Remove redundant non-ref sequences
+    by clustering with CD-HIT and taking
+    longest sequence from each cluster.
+    """
+    input:
+        config["out_dir"] + "/all_samples/non_ref/redun_non_ref_contigs.fasta"
+    output:
+        config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta"
+    params:
+        similarity_threshold=config['similarity_threshold'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn'],
+    conda:
+        CONDA_ENV_DIR + '/cd-hit.yml'
+    shell:
+        """
+        cd-hit -i {input} -o {output} -c {params.similarity_threshold} -n 5 -M 0 -d 0 -T {params.ppn}
+        """
