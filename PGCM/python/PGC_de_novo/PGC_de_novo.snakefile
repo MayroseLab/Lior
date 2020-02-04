@@ -579,6 +579,10 @@ rule orthofinder:
         CONDA_ENV_DIR + '/orthofinder2.yml'
     shell:
         """
+        if [ -d {params.orthofinder_dir}/OrthoFinder/Results_orthofinder/  ]
+        then
+            rm -rf {params.orthofinder_dir}/OrthoFinder/Results_orthofinder/
+        fi
         orthofinder -t {params.ppn} -a {params.ppn} -S diamond -n orthofinder -f {params.orthofinder_dir}
         """
 
