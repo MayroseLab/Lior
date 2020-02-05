@@ -35,7 +35,7 @@ snaphmm= #SNAP HMM file
 gmhmm= #GeneMark HMM file
 augustus_species=tomato #Augustus gene prediction species model
 fgenesh_par_file= #FGENESH parameter file
-pred_gff=<gene_models_gff>
+pred_gff= 
 model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
 est2genome=0 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
 protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
@@ -58,7 +58,7 @@ pred_flank=100 #flank for extending evidence clusters sent to gene predictors
 pred_stats=0 #report AED and QI statistics for all predictions as well as models
 AED_threshold=1 #Maximum Annotation Edit Distance allowed (bound by 0 and 1)
 min_protein=0 #require at least this many amino acids in predicted proteins
-alt_splice=0 #Take extra steps to try and find alternative splicing, 1 = yes, 0 = no
+alt_splice=1 #Take extra steps to try and find alternative splicing, 1 = yes, 0 = no
 always_complete=0 #extra steps to force start and stop codons, 1 = yes, 0 = no
 map_forward=0 #map names and attributes forward from old GFF3 genes, 1 = yes, 0 = no
 keep_preds=0 #Concordance threshold to add unsupported gene prediction (bound by 0 and 1)
