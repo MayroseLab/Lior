@@ -433,7 +433,7 @@ rule rename_genes:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/",
-        create_fasta_map_script=os.path.join(pipeline_dir,"create_fasta_map.py"),
+        create_fasta_map_script=os.path.join(utils_dir,"create_fasta_map.py"),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
