@@ -57,7 +57,7 @@ last_sample = list(config['samples_info'].keys())[-1]
 last_sample_ena = config['samples_info'][last_sample]['ena_ref']
 rule all:
     input:
-        config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta"
+         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -77,8 +77,6 @@ rule download_fastq:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
-    #conda:
-    #    CONDA_ENV_DIR + '/ena_download.yml'
     shell:
         """
         module load curl
@@ -408,4 +406,399 @@ rule remove_redundant:
     shell:
         """
         cd-hit -i {input} -o {output} -c {params.similarity_threshold} -n 5 -M 0 -d 0 -T {params.ppn}
+        """
+
+rule prep_annotation_chunks:
+    """
+    Divide non-ref contigs into chunks for efficient parallel analysis
+    """
+    input:
+        config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta"
+    output:
+        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
+    params:
+        split_script=utils_dir + '/split_fasta_records.py',
+        chunks=config['max_jobs'] - 1,
+        out_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        python {params.split_script} {input} {params.out_dir} {params.chunks}
+        touch {output}
+        """ 
+
+rule prep_annotation_chunks_tsv:
+    """
+    Prepare TSV config for liftover run
+    """
+    input:
+        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
+    output:
+        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.tsv"
+    params:
+        chunks_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        echo "chunk\tpath" > {output}
+        realpath {params.chunks_dir}/*.fasta | awk '{{n=split($0,a,"/"); sub(".yml","",a[n]); print a[n]"\t"$0}}' >> {output}
+        """
+
+rule prep_annotation_yaml:
+    """
+    Prepare yml config for annotation run
+    """
+    input:
+        chunks_tsv=config["out_dir"] + "/all_samples/non_ref/chunks/chunks.tsv"
+    output:
+        config["out_dir"] + "/all_samples/annotation/annotation.yml"
+    params:
+        annotation_dir=config["out_dir"] + "/all_samples/annotation",
+        templates_dir=config["annotation_config_templates"],
+        transcripts=config['transcripts'],
+        proteins=config['proteins'],
+        repeats_library=config['repeats_library'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        echo "name: MAKER_wrapper" >> {output}
+        echo "chunks_info_file: {input.chunks_tsv}" >> {output}
+        echo "out_dir: {params.annotation_dir}" >> {output}
+        echo "config_templates: {params.templates_dir}" >> {output}
+        echo "queue: {params.queue}" >> {output}
+        echo "priority: {params.priority}" >> {output}
+        echo "sample: non_ref_contigs" >> {output}
+        echo "logs_dir: {params.logs_dir}" >> {output}
+        echo config_kv_pairs: est={params.transcripts} protein={params.proteins} rmlib={params.repeats_library}  >> {output}
+        """
+
+rule maker_annotation:
+    """
+    Run MAKER on non-ref contigs
+    """
+    input:
+        config["out_dir"] + "/all_samples/annotation/annotation.yml"
+    output:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
+        config["out_dir"] + "/all_samples/annotation/maker.genes.gff"
+    params:
+        run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
+        queue=config['queue'],
+        jobs=config['max_jobs']//len(config['samples_info']),
+        annotation_dir=config["out_dir"] + "/all_samples/annotation",
+        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
+        priority=config['priority'],
+        jobscript=utils_dir + '/jobscript.sh',
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        cd {params.annotation_dir}
+        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        """
+
+rule rename_genes:
+    """
+    Assign genes short, unique names (gff and fasta).
+    Names consist of the genome name and a unique ID.
+    """
+    input:
+        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.gff"
+    output:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.raw_names.fasta",
+        config["out_dir"] + "/all_samples/annotation/maker.genes.raw_names.gff",
+        config["out_dir"] + "/all_samples/annotation/gff.map",
+        config["out_dir"] + "/all_samples/annotation/fasta.map"
+    params:
+        out_dir=config["out_dir"] + "/all_samples/annotation/",
+        create_fasta_map_script=os.path.join(utils_dir,"create_fasta_map.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        module load miniconda/miniconda2-4.5.4-MakerMPI
+        maker_map_ids --prefix non_ref_ --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
+        cp {input.gff} {params.out_dir}/maker.genes.raw_names.gff
+        map_gff_ids {params.out_dir}/gff.map {input.gff}
+        python {params.create_fasta_map_script} {input.gff} > {params.out_dir}/fasta.map
+        cp {input.fasta} {params.out_dir}/maker.proteins.raw_names.fasta
+        map_fasta_ids {params.out_dir}/fasta.map {input.fasta}
+        """
+
+rule filter_annotation:
+    """
+    Remove unreliable annotations
+    """
+    input:
+        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
+        fasta_map=config["out_dir"] + "/all_samples/annotation/fasta.map"
+    output:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter.fasta"
+    params:
+        filter_script=utils_dir + '/filter_by_aed.py',
+        max_aed=config['max_aed'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        python {params.filter_script} {input.fasta} {params.max_aed} {output}
+        """
+
+rule prevent_duplicate_names:
+    """
+    If for any reason the filtered
+    proteins contain duplicate names,
+    prevent this by renaming. This
+    helps prevent problems in next steps
+    """
+    input:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter.fasta"
+    output:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter_nodupl.fasta"
+    params:
+        dupl_script=utils_dir + '/prevent_duplicate_names.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.dupl_script} {input} {output}
+        """
+
+rule remove_redundant_proteins:
+    """
+    Remove redundant non-ref proteins
+    by clustering with CD-HIT and taking
+    longest sequence from each cluster.
+    """
+    input:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter_nodupl.fasta"
+    output:
+        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta"
+    params:
+        similarity_threshold=config['similarity_threshold_proteins'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn'],
+    conda:
+        CONDA_ENV_DIR + '/cd-hit.yml'
+    shell:
+        """
+        cd-hit -i {input} -o {output} -c {params.similarity_threshold} -n 5 -M 0 -d 0 -T {params.ppn}
+        """
+
+rule match_gff:
+    """
+    Filter genes gff according to
+    the genes remaining in proteins
+    fasta after all filtrations.
+    """
+    input:
+        prot=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.gff",
+    output:
+        gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
+        filter_list=config["out_dir"] + "/all_samples/annotation/filter.list"
+    params:
+        filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        grep '>' {input.prot} | sed 's/>\(.*\)-R.*/\\1/' > {output.filter_list}
+        grep '>' {input.prot} | sed 's/>\(.*-R[1-9]*\).*/\\1/' >> {output.filter_list}
+        python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
+        """
+
+rule create_pan_genome:
+    """
+    Create pan genome nucleotide
+    and protein fasta files + gff
+    as ref + non-ref
+    """
+    input:
+        non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
+        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
+        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff"
+    output:
+        pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
+        pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
+        pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
+    params:
+        ref_genome=config['reference_genome'],
+        ref_annotation=config['reference_annotation'],
+        ref_proteins=config['reference_proteins'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        cat {params.ref_genome} {input.non_ref_contigs} > {output.pan_genome}
+        cat {params.ref_annotation} {input.non_ref_gff} > {output.pan_genes}
+        cat {params.ref_proteins} {input.non_ref_proteins} > {output.pan_proteome}
+        """
+
+rule index_pan_genome:
+    """
+    Index pan genome for BWA runs
+    """
+    input:
+        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta"
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.bwt"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa index {input}
+        """
+
+rule map_reads_to_pan:
+    """
+    Map reads from each sample to
+    the pan genome.
+    """
+    input:
+        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
+        pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
+        pan_genome_index=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.bwt"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sam"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa mem -t {params.ppn} {input.pan_genome} {input.r1_paired} {input.r2_paired} > {output}
+        """
+
+rule sam_to_sorted_bam:
+    """
+    Convert SAM output to sorted BAM
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sam"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools view -@ {params.ppn} -bh {input} | samtools sort -@ {params.ppn} - -o {output}
+        """
+
+rule index_bam:
+    input:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam.bai"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools index {input}
+        """
+
+rule detect_gene_loss:
+    """
+    Run SGSGeneLoss on reads mapping result
+    to detect gene losses per sample
+    """
+    input:
+        bam=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam",
+        bai=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam.bai",
+        gff=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/graph.csv"
+    params:
+        SGSGeneLossJar=config['SGSGeneLossJar'],
+        bamDir=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/",
+        bamList="{ena_ref}_map_to_pan.sort.bam",
+        outDir=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/",
+        minCov=config['minCov'],
+        lostCutoff=config['lostCutoff'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        java -Xmx4g -jar {params.SGSGeneLossJar} bamPath={params.bamDir} bamFileList={params.bamList} gffFile={input.gff} outDirPath={params.outDir} chromosomeList=all minCov={params.minCov} lostCutoff={params.lostCutoff}
+        """
+
+rule unify_gene_loss_chromosomes:
+    """
+    Per sample, create one csv for all
+    chromosomes by unifying all .excov
+    files.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/graph.csv"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}.all.PAV"
+    params:
+        wdir=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        echo "chromosome,ID,is_lost,start_position,end_postion,frac_exons_covered,frac_gene_covered,ave_cov_depth_exons,cov_cat,ave_cove_depth_gene" > {output}
+        grep -h -v is_lost {params.wdir}/*.excov >> {output}
+        """
+
+rule create_pan_PAV_matrix:
+    """
+    Create a unified matrix of gene PAV
+    across all samples
+    """
+    input:
+        expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}.all.PAV", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
+    params:
+        create_PAV_matrix_script=pipeline_dir + '/create_PAV_matrix.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/pandas.yml'
+    shell:
+        """
+        python {params.create_PAV_matrix_script} {input} {output}
         """
