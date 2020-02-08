@@ -494,7 +494,7 @@ rule maker_annotation:
     params:
         run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
         queue=config['queue'],
-        jobs=config['max_jobs']
+        jobs=config['max_jobs'],
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
         qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
         priority=config['priority'],
