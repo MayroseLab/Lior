@@ -19,7 +19,7 @@ def grouper(n, iterable, padvalue=None):
     return zip_longest(*[iter(iterable)]*n, fillvalue=padvalue)
 
 n_records = len([1 for line in open(args.in_fasta) if line.startswith(">")])
-records_per_chunk = n_records // args.n_chunks
+records_per_chunk = max(n_records // args.n_chunks,1)
 records = list(SeqIO.parse(args.in_fasta,'fasta'))
 shuffle(records) # in case records are sorted by length
 records_grouped = grouper(records_per_chunk,records)
