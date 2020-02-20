@@ -10,6 +10,7 @@
 source ~/.bashrc
 hostname
 conda activate snakemake
+PATH="/groups/itay_mayrose/liorglic/miniconda3/envs/snakemake/bin:$PATH"
 
 cd /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test
 snakefile="/groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/PGC_de_novo.snakefile"
