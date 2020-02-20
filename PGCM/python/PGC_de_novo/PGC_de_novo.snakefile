@@ -375,6 +375,7 @@ rule prep_annotation_yaml:
         additional_transcripts=config['additional_transcripts'],
         proteins=config['proteins'],
         repeats_library=config['repeats_library'],
+        augustus_species=config['augustus_species'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -388,7 +389,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} pred_gff={input.liftover_gff} >> {output}
+        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} pred_gff={input.liftover_gff} augustus_species={params.augustus_species} >> {output}
         """
 
 rule maker_annotation:
