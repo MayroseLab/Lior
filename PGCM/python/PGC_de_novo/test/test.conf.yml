@@ -21,9 +21,14 @@ additional_transcripts: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/pytho
 proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/SwissProt_S_cerevisiae.fasta
 liftover_config_templates: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/annotation_pipeline/annotation_templates/liftover
 annotation_config_templates: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/annotation_pipeline/annotation_templates/annotation
+augustus_species: saccharomyces_cerevisiae_S288C
 
 # annotation filtration
 max_aed: 0.4
+
+# clustering
+ref_name: S288C
+ref_proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/SwissProt_S_cerevisiae.fasta
 
 # environment
 queue: itaym
