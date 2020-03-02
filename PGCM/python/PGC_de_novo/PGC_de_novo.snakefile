@@ -517,11 +517,10 @@ rule annotation_busco:
 
 rule prep_for_orthofinder:
     """
-    Prepare orthofinder input - create
-    hard links from all proteins fasta
-    files to a single directory, with
-    genome names. Also, simplify fasta
-    records names.
+    Prepare orthofinder input - simplify
+    fasta record names and put all fasta
+    files into one dir with file names
+    matching genome names.
     """
     input:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
@@ -529,34 +528,58 @@ rule prep_for_orthofinder:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta"
     params:
         of_dir=config["out_dir"] + "/all_samples/orthofinder",
-        ref_name=config['ref_name'],
-        ref_proteins=config['ref_proteins'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
         sed 's/ protein .*//' {input} > {output}
-        if [ ! -f "{params.of_dir}/{params.ref_name}.fasta" ]; then
-            cp {params.ref_proteins} {params.of_dir}/{params.ref_name}.fasta
-        fi
+        """
+
+rule remove_ref_alt_splicing:
+    """
+    In case the reference annotation
+    contains genes with multiple mRNAs,
+    only keep the longest transcript.
+    """
+    input:
+        config['ref_annotation']
+    output:
+        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+    params:
+        longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.longest_trans_script} {input} {output}
         """
 
 rule get_ref_proteins:
     """
-    Copy reference proteins to orthofinder dir
+    Filter reference proteins according
+    to filtered gff and put the new file
+    in orthofinder dir.
     """
     input:
-        config['ref_proteins'],
+        fasta=config['ref_proteins'],
+        gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
         config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
     params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        name_attribute=config['name_attribute'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        cp {input} {output}
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
         """
 
 rule orthofinder:

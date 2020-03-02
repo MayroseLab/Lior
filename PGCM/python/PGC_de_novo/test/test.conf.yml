@@ -2,7 +2,6 @@ name: PGC_de_novo
 # input/output
 samples_info_file: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_samples_info.tsv
 out_dir: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/RESULT
-reference_genome: 
 
 # Reads pre processing (RPP)
 trimming_modules: "ILLUMINACLIP:/groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/NexteraPE-PE.fa:2:30:10 SLIDINGWINDOW:5:15 MINLEN:70"
@@ -28,7 +27,9 @@ max_aed: 0.4
 
 # clustering
 ref_name: S288C
-ref_proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/SwissProt_S_cerevisiae.fasta
+ref_proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/ref_proteins.fasta
+ref_annotation: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/ref_annotation.gff
+name_attribute: ID
 
 # environment
 queue: itaym
