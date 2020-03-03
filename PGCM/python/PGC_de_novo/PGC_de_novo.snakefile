@@ -50,11 +50,8 @@ localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_lift
 
 rule all:
     input:
-#        expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-#        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-#        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
-         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
-        
+        pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
+        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv" 
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -627,10 +624,32 @@ rule break_orthogroups_MWOP:
         mwop_script=os.path.join(pipeline_dir,"break_OrthoFinder_clusters.py"),
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR,
+        logs_dir=LOGS_DIR
     conda:
         CONDA_ENV_DIR + '/break_orthogroups.yml'
     shell:
         """
         python {params.mwop_script} {params.orthofinder_dir} bitscore {output}
+        """
+
+rule create_PAV_matrix:
+    """
+    Create the final PAV and CNV matrices
+    """
+    input:
+        config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
+    output:
+        pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
+        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv"
+    params:
+        create_pav_mat_script=os.path.join(pipeline_dir,"create_PAV_matrix.py"),
+        ref_name=config['ref_name'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/break_orthogroups.yml'
+    shell:
+        """
+        python {params.create_pav_mat_script} {input} {params.ref_name} {output.pav} {output.cnv}
         """
