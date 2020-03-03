@@ -39,6 +39,7 @@ Script arguments:
    by tabs.
 """
 
+from __future__ import print_function
 import networkx as nx
 from networkx.algorithms import bipartite, matching
 import sqlite3 as sql
@@ -120,7 +121,10 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   cur.execute("CREATE TABLE seqnames (seqid text, seqname text)")
   seq_ids_file = os.path.join(blast_dir, 'SequenceIDs.txt')
   colnames = ['seqid','seqname']
-  df = pd.read_csv(seq_ids_file, sep=': ', header=None, names=colnames)
+  # can't do read_csv because gene names may contain ': '
+  # so reading file line by line
+  with open(seq_ids_file) as f:
+    df = pd.DataFrame([[line.strip().split(': ', 2)[0] , line.strip().split(': ', 2)[1]] for line in f], columns=colnames)
   df.to_sql('seqnames', con, if_exists='append', index=False)
   cur.execute("CREATE TABLE blast_seqnames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast b INNER JOIN (SELECT seqid AS qseqid, seqname AS qseqname FROM seqnames) s ON b.qseqid = s.qseqid) b INNER JOIN (SELECT seqid AS sseqid, seqname AS sseqname FROM seqnames) s ON b.sseqid = s.sseqid")
 
@@ -266,9 +270,6 @@ class HomologyCluster(nx.Graph):
     """
     table_name = "blast_orthologs_bidirect"
     df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), con)
-    #df['prot1_full'] = df['prot1_genome'] + '_' + df['prot1']
-    #df['prot2_full'] = df['prot2_genome'] + '_' + df['prot2']
-    #df.apply(lambda g: self.add_edge(g['prot1_full'], g['prot2_full'], weight=g['weight']), axis=1)
     df.apply(lambda g: self.add_edge(g['prot1'], g['prot2'], weight=g['weight']), axis=1)
 
   def break_mwop(self, tree, allow_gene_copies=False):
@@ -393,7 +394,26 @@ class HomologyCluster(nx.Graph):
       n_leaves = len(tree.get_tree_root())
 
     # finish when all leaves were merged
-    return V
+    # return a list of graphs, each is an OG
+    ogs_list = list(V.values())[0]
+    # create list of empty graphs
+    ogs_graph_list = [ nx.Graph() for og in ogs_list ]
+    for i in range(len(ogs_list)):
+      # populate with nodes
+      ogs_graph_list[i].add_nodes_from([(n, {'genome': self.nodes[n]['genome']}) for n in ogs_list[i]])
+      # assign OG name
+      ogs_graph_list[i].orthogroup = "%s.%s" %(self.orthogroup, i)
+    return ogs_graph_list
+
+def create_orthofinder_line(graph, genomes_order):
+    """
+    Takes an OG (nx.Graph) and prepares a line
+    (str) in orthofinder format
+    """
+    d = {genome: [] for genome in genomes_order}
+    for node in graph.nodes:
+      d[graph.nodes[node]['genome']].append(node)
+    return '\t'.join([graph.orthogroup] + [', '.join(d[genome]) for genome in genomes_order])
 
 if __name__ == "__main__":
   orthofinder_dir = sys.argv[1]
@@ -413,7 +433,9 @@ if __name__ == "__main__":
   gene_trees_dir = os.path.join(orthofinder_dir, 'Resolved_Gene_Trees')
 
   with open(orthogroups_file) as f, open(orthogroups_out, 'w') as fo:
-    genomes = f.readline().strip().split('\t')[1:]
+    header = f.readline().strip()
+    print(header, file=fo)
+    genomes = header.split('\t')[1:]
     for line in f:
       og = line.split('\t')[0]
       print(og)
@@ -425,9 +447,9 @@ if __name__ == "__main__":
       if hc.has_paralogs and len(hc.nodes) > 3:
         hc.add_edges(con)
         orthogroups = hc.break_mwop(tree, allow_gene_copies=True)
-        orthogroups = list(orthogroups.values())[0]
       else:
-        orthogroups = [list(hc.nodes)]
+        orthogroups = [hc]
       for og_break in orthogroups:
         if len(og_break) > 0:
-          print('\t'.join(og_break), file=fo)
+          og_break_line = create_orthofinder_line(og_break, genomes)
+          print(og_break_line, file=fo)
