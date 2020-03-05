@@ -51,7 +51,8 @@ localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_lift
 rule all:
     input:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
-        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv" 
+        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
+        mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -640,7 +641,8 @@ rule create_PAV_matrix:
         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
     output:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
-        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv"
+        cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
+        mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
     params:
         create_pav_mat_script=os.path.join(pipeline_dir,"create_PAV_matrix.py"),
         ref_name=config['ref_name'],
@@ -651,5 +653,5 @@ rule create_PAV_matrix:
         CONDA_ENV_DIR + '/break_orthogroups.yml'
     shell:
         """
-        python {params.create_pav_mat_script} {input} {params.ref_name} {output.pav} {output.cnv}
+        python {params.create_pav_mat_script} {input} {params.ref_name} {output.pav} {output.cnv} {output.mapping}
         """

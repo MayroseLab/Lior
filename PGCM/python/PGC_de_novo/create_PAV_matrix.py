@@ -18,6 +18,7 @@ in_orthogroups_tsv = sys.argv[1]
 ref_name = sys.argv[2]
 out_pav_tsv = sys.argv[3]
 out_cnv_tsv = sys.argv[4]
+out_names_mapping = sys.argv[5]
 
 def choose_gene_name(row):
   if pd.notna(row[ref_name]):
@@ -28,9 +29,13 @@ def choose_gene_name(row):
 df = pd.read_csv(in_orthogroups_tsv, sep='\t', index_col='Orthogroup')
 # give each orthogroup a gene name
 df.sort_values(by = ref_name, inplace=True)
-df = df.reset_index(drop=True)
+df = df.reset_index()
 first_pan_index = df.loc[df[ref_name].isna()].iloc[0].name
 df['gene'] = df.apply(choose_gene_name, axis=1)
+# write out name mapping
+df.to_csv(out_names_mapping, sep='\t', columns=['Orthogroup','gene'], index=False)
+# then keep manipulating table
+df = df.drop('Orthogroup', axis=1)
 df = df.set_index('gene')
 # convert OG content to PAV (or CNV)
 for col in df:
