@@ -431,12 +431,14 @@ if __name__ == "__main__":
   # Calculate orthogroups
   orthogroups_file = os.path.join(orthofinder_dir, 'Orthogroups', 'Orthogroups.tsv')
   gene_trees_dir = os.path.join(orthofinder_dir, 'Resolved_Gene_Trees')
+  unassigned_file = os.path.join(orthofinder_dir, 'Orthogroups', 'Orthogroups_UnassignedGenes.tsv') # single-gene OGs
 
-  with open(orthogroups_file) as f, open(orthogroups_out, 'w') as fo:
-    header = f.readline().strip()
+  with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(orthogroups_out, 'w') as fo:
+    all_lines = f1.readlines() + f2.readlines()[1:]
+    header = all_lines.pop(0).strip()
     print(header, file=fo)
     genomes = header.split('\t')[1:]
-    for line in f:
+    for line in all_lines:
       og = line.split('\t')[0]
       print(og)
       og_tree = os.path.join(gene_trees_dir,"%s_tree.txt" % og)
