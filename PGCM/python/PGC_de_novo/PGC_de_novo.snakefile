@@ -52,7 +52,7 @@ rule all:
     input:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
-        mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
+        prot=config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -654,4 +654,28 @@ rule create_PAV_matrix:
     shell:
         """
         python {params.create_pav_mat_script} {input} {params.ref_name} {output.pav} {output.cnv} {output.mapping}
+        """
+
+rule create_pan_proteins_fasta:
+    """
+    Create a fasta file with one
+    representative protein sequence
+    per pan gene.
+    """
+    input:
+        mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv",
+        mwop=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
+    params:
+        create_pan_prot_fasta_script=os.path.join(pipeline_dir,"create_pan_proteins_fasta.py"),
+        og_seq_dir=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroup_Sequences",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        python {params.create_pan_prot_fasta_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
         """
