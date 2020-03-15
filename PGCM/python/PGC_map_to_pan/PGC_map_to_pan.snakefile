@@ -629,6 +629,28 @@ rule match_gff:
         python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
         """
 
+rule remove_ref_alt_splicing:
+    """
+    In case the reference annotation
+    contains genes with multiple mRNAs,
+    only keep the longest transcript.
+    """
+    input:
+        config['reference_annotation']
+    output:
+        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+    params:
+        longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.longest_trans_script} {input} {output}
+        """
+
 rule create_pan_genome:
     """
     Create pan genome nucleotide
@@ -638,14 +660,14 @@ rule create_pan_genome:
     input:
         non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
         non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
-        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff"
+        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
         pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
     params:
         ref_genome=config['reference_genome'],
-        ref_annotation=config['reference_annotation'],
         ref_proteins=config['reference_proteins'],
         queue=config['queue'],
         priority=config['priority'],
@@ -653,7 +675,7 @@ rule create_pan_genome:
     shell:
         """
         cat {params.ref_genome} {input.non_ref_contigs} > {output.pan_genome}
-        cat {params.ref_annotation} {input.non_ref_gff} > {output.pan_genes}
+        cat {input.ref_gff} {input.non_ref_gff} > {output.pan_genes}
         cat {params.ref_proteins} {input.non_ref_proteins} > {output.pan_proteome}
         """
 
