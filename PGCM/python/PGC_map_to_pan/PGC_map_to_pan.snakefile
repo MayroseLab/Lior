@@ -493,7 +493,7 @@ rule rename_genes:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        maker_map_ids --prefix non_ref_ --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
+        maker_map_ids --prefix PanGene --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
         cp {input.gff} {params.out_dir}/maker.genes.raw_names.gff
         map_gff_ids {params.out_dir}/gff.map {input.gff}
         python {params.create_fasta_map_script} {input.gff} > {params.out_dir}/fasta.map
