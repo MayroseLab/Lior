@@ -600,7 +600,7 @@ rule remove_ref_alt_splicing:
     input:
         config['reference_annotation']
     output:
-        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     params:
         longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
         queue=config['queue'],
@@ -623,7 +623,7 @@ rule create_pan_genome:
         non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
         non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
         non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
-        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
@@ -778,6 +778,7 @@ rule create_pan_PAV_matrix:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
     params:
         create_PAV_matrix_script=pipeline_dir + '/create_PAV_matrix.py',
+        ref_name=config['reference_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -785,5 +786,5 @@ rule create_pan_PAV_matrix:
         CONDA_ENV_DIR + '/pandas.yml'
     shell:
         """
-        python {params.create_PAV_matrix_script} {input} {output}
+        python {params.create_PAV_matrix_script} {input} {params.ref_name} {output}
         """

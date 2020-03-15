@@ -19,7 +19,8 @@ import pandas as pd
 import sys
 import os
 
-in_files = sys.argv[1:-1]
+in_files = sys.argv[1:-2]
+ref_name = sys.argv[-2]
 out_tsv = sys.argv[-1]
 
 samples_pav = []
@@ -32,4 +33,5 @@ for f in in_files:
   samples_pav.append(pav_s)
 
 pav_df = pd.concat(samples_pav, axis=1)
+pav_df[ref_name] = pd.Series(pav_df.index, index=pav_df.index).str.startswith('PanGene').map({False: 1, True: 0})
 pav_df.to_csv(out_tsv, sep='\t')
