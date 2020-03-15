@@ -244,44 +244,6 @@ rule assembly_quast:
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
 
-#def recurse_sample(wcs):
-#    n = int(wcs.n)
-#    if n == 1:
-#        ret = config['reference_genome']
-#    elif n > 1:
-#        ret = config["out_dir"] + '/all_samples/non_reference/%s_%s_%s/non_ref_contigs.fasta' % (wcs.sample, wcs.ena_ref, str(n-1))
-#    else:
-#        raise ValueError("loop numbers must be 1 or greater: received %s" % wcs.n)
-#    return ret
-#
-#rule map_to_pan:
-#    """
-#    Collect the non-reference part of the
-#    pan genome by iteratively mapping asembled
-#    contigs to the reference
-#    """
-#    input:
-#        ref=recurise_sample,
-#        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
-#    output:
-#        map_sam=config["out_dir"] + '/all_samples/non_reference/{sample}_{ena_ref}_{n}/contigs_map.sam',
-#        non_ref=config["out_dir"] + '/all_samples/non_reference/{sample}_{ena_ref}_{n}/non_ref_contigs.fasta'
-#    params:
-#        min_length=config['min_length'],
-#        extract_insert_script=pipeline_dir + '/extract_insertions_from_sam.py',
-#        queue=config['queue'],
-#        priority=config['priority'],
-#        logs_dir=LOGS_DIR,
-#        ppn=config['ppn']
-#    conda:
-#        CONDA_ENV_DIR + '/map_to_pan.yml'
-#    shell:
-#        """
-#        minimap2 -ax asm5 -t {params.ppn} {input.contigs} {input.ref} > {output.map_sam}
-#        samtools view -f 4 tmp/map5.sam | awk 'length($10) > {params.min_length}' | samtools fasta - > {output.non_ref}
-#        python {params.extract_insert_script} {output.map_sam} {params.min_length} >> {output.non_ref}
-#        """
-
 rule map_to_ref:
     """
     Map contigs from each genome assembly
