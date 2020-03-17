@@ -4,7 +4,7 @@ samples_info_file: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC
 out_dir: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_map_to_pan/test/RESULT
 reference_genome: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_map_to_pan/test/test_data/S288C_reference_genome_R64-2-1_20150113/S288C_reference_sequence_R64-2-1_20150113.fsa
 reference_annotation: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_map_to_pan/test/test_data/S288C_reference_annotation_proc.gff
-reference_proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_map_to_pan/test/test_data/SwissProt_S_cerevisiae.fasta
+reference_proteins: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/ref_proteins.fasta
 reference_name: S288C
 
 # Reads pre processing (RPP)
@@ -30,6 +30,9 @@ augustus_species: saccharomyces_cerevisiae_S288C
 # annotation filtration
 max_aed: 0.4
 similarity_threshold_proteins: 0.95
+
+# process reference
+name_attribute: ID
 
 # gene loss detection
 SGSGeneLossJar: /groups/itay_mayrose/liorglic/SGSGeneLossv0.1/SGSGeneLoss.v0.1.jar

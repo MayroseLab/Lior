@@ -567,6 +567,23 @@ rule remove_redundant_proteins:
         cd-hit -i {input} -o {output} -c {params.similarity_threshold} -n 5 -M 0 -d 0 -T {params.ppn}
         """
 
+rule simplify_nonref_protein_names:
+    """
+    Keep only PanGeneX part of names
+    """
+    input:
+        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta"
+    output:
+        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed 's/>\(.*\)-R.*/>\\1/' {input} > {output}
+        """
+
 rule match_gff:
     """
     Filter genes gff according to
@@ -613,6 +630,29 @@ rule remove_ref_alt_splicing:
         python {params.longest_trans_script} {input} {output}
         """
 
+rule get_ref_proteins:
+    """
+    Filter reference proteins according
+    to filtered gff
+    """
+    input:
+        fasta=config['reference_proteins'],
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '.fasta'
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        name_attribute=config['name_attribute'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        """
+
 rule create_pan_genome:
     """
     Create pan genome nucleotide
@@ -621,16 +661,16 @@ rule create_pan_genome:
     """
     input:
         non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
-        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
+        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
         non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
-        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
+        ref_proteins=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '.fasta'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
         pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
     params:
         ref_genome=config['reference_genome'],
-        ref_proteins=config['reference_proteins'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -638,7 +678,7 @@ rule create_pan_genome:
         """
         cat {params.ref_genome} {input.non_ref_contigs} > {output.pan_genome}
         cat {input.ref_gff} {input.non_ref_gff} > {output.pan_genes}
-        cat {params.ref_proteins} {input.non_ref_proteins} > {output.pan_proteome}
+        cat {input.ref_proteins} {input.non_ref_proteins} > {output.pan_proteome}
         """
 
 rule index_pan_genome:
