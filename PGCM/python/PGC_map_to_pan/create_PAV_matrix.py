@@ -30,6 +30,7 @@ for f in in_files:
   pav_s = df['is_lost'].map({'PRESENT': 1, 'LOST': 0})
   pav_s.name = sample_name
   pav_s.index = df['ID']
+  pav_s.index.rename('gene', inplace=True)
   samples_pav.append(pav_s)
 
 pav_df = pd.concat(samples_pav, axis=1)
