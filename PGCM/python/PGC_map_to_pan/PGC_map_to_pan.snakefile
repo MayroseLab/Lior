@@ -795,7 +795,7 @@ rule unify_gene_loss_chromosomes:
     input:
         config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/graph.csv"
     output:
-        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}.all.PAV"
+        config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}_{ena_ref}.all.PAV"
     params:
         wdir=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}",
         queue=config['queue'],
@@ -813,7 +813,7 @@ rule create_pan_PAV_matrix:
     across all samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}.all.PAV", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}_{ena_ref}.all.PAV", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
     params:
