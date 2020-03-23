@@ -678,30 +678,56 @@ rule get_ref_proteins:
 
 rule create_pan_genome:
     """
-    Create pan genome nucleotide
-    and protein fasta files + gff
-    as ref + non-ref
+    Create pan genome nucleotide fasta
     """
     input:
+        ref_genome=config['reference_genome'],
         non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
-        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
-        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
-        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
-        ref_proteins=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
-        pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
-        pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
     params:
-        ref_genome=config['reference_genome'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     shell:
         """
-        cat {params.ref_genome} {input.non_ref_contigs} > {output.pan_genome}
-        cat {input.ref_gff} {input.non_ref_gff} > {output.pan_genes}
+        cat {input.ref_genome} {input.non_ref_contigs} > {output.pan_genome}
+        """
+
+rule create_pan_proteome:
+    """
+    Create pan genome proteins fasta
+    """
+    input:
+        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
+        ref_proteins=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
+    output:
+        pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
         cat {input.ref_proteins} {input.non_ref_proteins} > {output.pan_proteome}
+        """
+        
+rule create_pan_annotation:
+    """
+    Create pan genome annotation gff
+    """
+    input:
+        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff'
+    output:
+        pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        cat {input.ref_gff} {input.non_ref_gff} > {output.pan_genes}
         """
 
 rule index_pan_genome:
