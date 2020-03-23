@@ -57,7 +57,10 @@ last_sample = list(config['samples_info'].keys())[-1]
 last_sample_ena = config['samples_info'][last_sample]['ena_ref']
 rule all:
     input:
-         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
+        config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
+        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
+        config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
+        config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -639,7 +642,7 @@ rule get_ref_proteins:
         fasta=config['reference_proteins'],
         gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     output:
-        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '.fasta'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         name_attribute=config['name_attribute'],
@@ -664,7 +667,7 @@ rule create_pan_genome:
         non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
         non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
         ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
-        ref_proteins=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '.fasta'
+        ref_proteins=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
