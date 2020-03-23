@@ -33,9 +33,11 @@ onerror:
 #                RULES              |
 #------------------------------------
 
+localrules: all
+
 rule all:
     input:
-        os.path.join(config["out_dir"], 'RBBH.tsv')
+        os.path.join(config["out_dir"], 'report.html')
 
 def get_pan_genome(wildcards):
     return config['pan_genomes'][wildcards.PG]['proteins_fasta']
@@ -112,20 +114,53 @@ rule find_RBBH:
     input:
         fw=os.path.join(config["out_dir"], pg1 + "_nonref_vs_" + pg2 + "_nonref.blast6"),
         rev=os.path.join(config["out_dir"], pg2 + "_nonref_vs_" + pg1 + "_nonref.blast6")
-        #expand(os.path.join(config["out_dir"], "{PG1}_nonref_vs_{PG2}_nonref.blast6"), zip, PG1=sorted(list(config['pan_genomes'].keys())), PG2=sorted(list(config['pan_genomes'].keys())))
     output:
         os.path.join(config["out_dir"], 'RBBH.tsv')
     params:
         find_RBBH_script=os.path.join(pipeline_dir, 'find_RBBH.py'), 
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR,
+        logs_dir=LOGS_DIR
     shell:
         """
         python {params.find_RBBH_script} {input.fw} {input.rev} {output}
         """
 
+rule create_report_nb:
+    """
+    Create jupyter notebook of comparison report
+    """
+    input:
+        pg1_pav=config['pan_genomes'][pg1]['pav_tsv'],
+        pg2_pav=config['pan_genomes'][pg2]['pav_tsv'],
+        rbbh=os.path.join(config["out_dir"], 'RBBH.tsv')
+    output:
+        os.path.join(config["out_dir"], 'report.ipynb')
+    params:
+        nb_template=os.path.join(pipeline_dir, 'report_template.ipynb'),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed -e 's@<PG1_PAV>@{input.pg1_pav}@' -e 's@<PG2_PAV>@{input.pg2_pav}@' -e 's@<NON_REF_RBBH>@{input.rbbh}@' -e 's@<PG1_NAME>@%s@' -e 's@<PG2_NAME>@%s@' {params.nb_template} > {output} 
+        """ %(pg1, pg2)
 
-
-
-
+rule create_report_html:
+    """
+    Convert notebook to HTML report
+    """
+    input:
+        os.path.join(config["out_dir"], 'report.ipynb')
+    output:
+        os.path.join(config["out_dir"], 'report.html')
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/jupyter.yml'
+    shell:
+        """
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input
+        """
