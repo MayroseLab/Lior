@@ -633,6 +633,26 @@ rule remove_ref_alt_splicing:
         python {params.longest_trans_script} {input} {output}
         """
 
+rule simplify_ref_gff_ID:
+    """
+    Edit ID (and Parent) attributes of ref gff
+    To make them simpler (if needed)
+    """
+    input:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
+    output:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff'
+    params:
+        simplify_gff_script=utils_dir + '/simplify_gff_id.py',
+        simp_function=config['id_simplify_function'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.simplify_gff_script} {input} {output} "{params.simp_function}"
+        """
+
 rule get_ref_proteins:
     """
     Filter reference proteins according
@@ -666,7 +686,7 @@ rule create_pan_genome:
         non_ref_contigs=config["out_dir"] + "/all_samples/non_ref/non_redun_non_ref_contigs.fasta",
         non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
         non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
-        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
         ref_proteins=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
     output:
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
