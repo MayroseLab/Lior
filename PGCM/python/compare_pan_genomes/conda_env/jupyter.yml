@@ -6,3 +6,4 @@ dependencies:
   - pandas
   - plotly
   - matplotlib-venn
+  - ipywidgets
