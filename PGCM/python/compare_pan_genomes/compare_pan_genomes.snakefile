@@ -162,5 +162,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute
         """
