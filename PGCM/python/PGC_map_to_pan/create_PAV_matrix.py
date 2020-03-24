@@ -11,17 +11,22 @@ The script takes a list of .excov files
 (one per sample) sepearated by spaces.
 File names should be:
 <sample name>.all.PAV
-The last argument is the output tsv.
-
+after the list there are 3 additional parameters:
+1. name of the reference genome
+2. a tsv with two columns: gene name and new name,
+   used for modifying gene names
+3. output PAV tsv
 """
 
 import pandas as pd
 import sys
 import os
 
-in_files = sys.argv[1:-2]
-ref_name = sys.argv[-2]
+in_files = sys.argv[1:-3]
+ref_name = sys.argv[-3]
+name_sub_tsv = sys.argv[-2]
 out_tsv = sys.argv[-1]
+
 
 samples_pav = []
 for f in in_files:
@@ -30,9 +35,12 @@ for f in in_files:
   pav_s = df['is_lost'].map({'PRESENT': 1, 'LOST': 0})
   pav_s.name = sample_name
   pav_s.index = df['ID']
-  pav_s.index.rename('gene', inplace=True)
+  #pav_s.index.rename('gene', inplace=True)
   samples_pav.append(pav_s)
 
 pav_df = pd.concat(samples_pav, axis=1)
 pav_df[ref_name] = pd.Series(pav_df.index, index=pav_df.index).str.startswith('PanGene').map({False: 1, True: 0})
+name_sub_df = pd.read_csv(name_sub_tsv, sep="\t", index_col=0, names=['new_name'])
+pav_df.index = pav_df.apply(lambda row: name_sub_df.loc[row.name]['new_name'] if row.name in name_sub_df.index else row.name, axis=1)
+pav_df.index.rename('gene', inplace=True)
 pav_df.to_csv(out_tsv, sep='\t')

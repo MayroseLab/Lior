@@ -25,11 +25,12 @@ names = {feat.attributes[name_attribute][0] for feat in gff.features_of_type(fea
 remove(db_path)
 
 # go over fasta and select records by name
-records = set()
+records = []
 with open(in_fasta) as f:
   for rec in SeqIO.parse(f, "fasta"):
     if rec.id in names:
-      records.add(rec)
+      rec.description = ''
+      records.append(rec)
 
 with open(out_fasta, 'w') as fo:
   SeqIO.write(records, fo, "fasta")

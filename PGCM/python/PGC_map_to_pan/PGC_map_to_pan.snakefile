@@ -611,37 +611,15 @@ rule match_gff:
         python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
         """
 
-rule remove_ref_alt_splicing:
-    """
-    In case the reference annotation
-    contains genes with multiple mRNAs,
-    only keep the longest transcript.
-    """
-    input:
-        config['reference_annotation']
-    output:
-        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
-    params:
-        longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/gffutils.yml'
-    shell:
-        """
-        python {params.longest_trans_script} {input} {output}
-        """
-
 rule simplify_ref_gff_ID:
     """
     Edit ID (and Parent) attributes of ref gff
     To make them simpler (if needed)
     """
     input:
-        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
+        config['reference_annotation']
     output:
-        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_simp.gff'
     params:
         simplify_gff_script=utils_dir + '/simplify_gff_id.py',
         simp_function=config['id_simplify_function'],
@@ -651,6 +629,29 @@ rule simplify_ref_gff_ID:
     shell:
         """
         python {params.simplify_gff_script} {input} {output} "{params.simp_function}"
+        """
+
+rule remove_ref_alt_splicing:
+    """
+    In case the reference annotation
+    contains genes with multiple mRNAs,
+    only keep the longest transcript.
+    """
+    input:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_simp.gff'
+    output:
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
+        table=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff.gene_to_mRNA'
+    params:
+        longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.longest_trans_script} {input} {output.gff}
         """
 
 rule get_ref_proteins:
@@ -862,7 +863,8 @@ rule create_pan_PAV_matrix:
     across all samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}_{ena_ref}.all.PAV", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        in_files=expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{sample}_{ena_ref}.all.PAV", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        names_sub=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff.gene_to_mRNA'
     output:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
     params:
@@ -875,5 +877,5 @@ rule create_pan_PAV_matrix:
         CONDA_ENV_DIR + '/pandas.yml'
     shell:
         """
-        python {params.create_PAV_matrix_script} {input} {params.ref_name} {output}
+        python {params.create_PAV_matrix_script} {input.in_files} {params.ref_name} {input.names_sub} {output}
         """

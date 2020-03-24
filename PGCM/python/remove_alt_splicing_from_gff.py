@@ -12,12 +12,13 @@ from os import remove
 
 in_gff = sys.argv[1]
 out_gff = sys.argv[2]
+gene_mrna_out = out_gff + '.gene_to_mRNA'
 
 db_path = "tmp.sqlite3"
 gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
 gff = gffutils.FeatureDB(db_path)
 
-with open(out_gff, 'w') as fo:
+with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
   for feature in gff.all_features():
     if feature.featuretype not in {'gene', 'mRNA', 'exon', 'CDS', 'five_prime_UTR', 'three_prime_UTR'}:
       print(str(feature), file=fo)
@@ -36,6 +37,7 @@ with open(out_gff, 'w') as fo:
         max_len = total_exons_len
         longest_transcript = mrna
     print(str(longest_transcript), file=fo)
+    print("%s\t%s" %(gene['ID'][0], longest_transcript['ID'][0]),file=fo2)
     for x in gff.children(longest_transcript):
       print(str(x), file=fo)
         
