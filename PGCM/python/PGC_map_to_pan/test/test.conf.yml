@@ -33,6 +33,7 @@ similarity_threshold_proteins: 0.95
 
 # process reference
 name_attribute: ID
+id_simplify_function: "lambda x: x.replace('_mRNA','')"
 
 # gene loss detection
 SGSGeneLossJar: /groups/itay_mayrose/liorglic/SGSGeneLossv0.1/SGSGeneLoss.v0.1.jar
