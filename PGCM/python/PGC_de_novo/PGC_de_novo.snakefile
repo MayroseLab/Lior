@@ -251,7 +251,7 @@ rule prep_chunks:
         config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/done"
     params:
         split_script=utils_dir + '/split_fasta_records.py',
-        chunks=config['max_jobs'] - 1,
+        chunks=config['max_jobs']//len(config['samples_info']) - 1,
         out_dir=config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}",
         queue=config['queue'],
         priority=config['priority'],
