@@ -11,6 +11,8 @@ merge_max_mismatch_ratio: 0.2
 # assembly
 min_length: 500
 min_coverage: 2
+ref_genome: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/S288C_reference_sequence_R64-2-1_20150113.fsa
+ragoo_script: /groups/itay_mayrose/liorglic/RaGOO/ragoo.py
 busco_set: /groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/saccharomycetales_odb9
 
 # annotation
@@ -33,7 +35,7 @@ name_attribute: ID
 
 # environment
 queue: itaym
-priority: 1
-ppn: 20
+priority: 3
+ppn: 10
 max_ram: 2G
 max_jobs: 100

@@ -159,7 +159,7 @@ rule genome_assembly:
         unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
         merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta",
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
         ppn=config['ppn'],
@@ -172,7 +172,6 @@ rule genome_assembly:
         """
         spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired} --threads {params.ppn}
         """
-
 rule filter_contigs:
     """
     Discard contigs shorter than L or with coverage lower than C (L, C given by user)
@@ -195,16 +194,45 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
-rule assembly_busco:
+rule ref_guided_assembly:
     """
-    Run BUSCO on filtered contigs
+    Assemble contigs into pseudomolecules
+    by mapping to the reference genome and
+    using reference-guided assembly
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        ref_genome=config['ref_genome']
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/contigs_against_ref.paf"
     params:
-        assembly_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+        ragoo_script=config['ragoo_script'],
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn=config['ppn'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/RaGOO.yml'
+    shell:
+        """
+        cd {params.out_dir}
+        ln {input.contigs} contigs.fasta
+        ln {input.ref_genome} ref.fasta
+        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -C -g 0
+        """
+
+rule assembly_busco:
+    """
+    Run BUSCO on assembly
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/run_BUSCO/short_summary_BUSCO.txt"
+    params:
+        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output",
         busco_set=config['busco_set'],
         queue=config['queue'],
         priority=config['priority'],
@@ -220,16 +248,17 @@ rule assembly_busco:
 
 rule assembly_quast:
     """
-    Run QUAST on filtered assembly to get assembly stats and QA
+    Run QUAST on assembly to get assembly stats and QA
     """
     input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        assembly=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
         r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
     output:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST/report.html",
         config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
     params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -241,12 +270,37 @@ rule assembly_quast:
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
 
-rule prep_chunks:
+rule create_ref_genes_bed:
     """
-    Divide filtered contigs into chunks for efficient parallel analysis
+    Create a bed file with reference genes
+    coordinates on the assembly. This will
+    be used to avoid cutting genes when
+    creating genome chunks.
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        paf=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/contigs_against_ref.paf",
+        gff=config['ref_annotation']
+    output:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ref_gene.bed"
+    params:
+        ord_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings",
+        ragoo_liftover_script=os.path.join(pipeline_dir,"ragoo_liftover.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        #python {params.ragoo_liftover_script} {input.gff} {input.paf} {params.ord_dir} {output}
+        touch {output}
+        """
+
+rule prep_chunks:
+    """
+    Divide assembly into chunks for efficient parallel analysis
+    """
+    input:
+        fasta=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        bed=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ref_gene.bed"
     output:
         config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/done"
     params:
@@ -257,11 +311,10 @@ rule prep_chunks:
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
+        CONDA_ENV_DIR + '/split_fasta.yml'
     shell:
         """
-        python --version
-        python {params.split_script} {input} {params.out_dir} {params.chunks}
+        python {params.split_script} {input.fasta} {params.out_dir} {params.chunks} --regions_bed {input.bed}
         touch {output}
         """ 
 
