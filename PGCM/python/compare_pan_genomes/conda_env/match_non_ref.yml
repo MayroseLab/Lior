@@ -1,0 +1,5 @@
+name: match_no_ref
+channels:
+  - conda-forge
+dependencies:
+  - networkx
