@@ -220,7 +220,7 @@ rule ref_guided_assembly:
         cd {params.out_dir}
         ln {input.contigs} contigs.fasta
         ln {input.ref_genome} ref.fasta
-        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -C -g 0
+        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -g 10
         """
 
 rule assembly_busco:
@@ -270,52 +270,26 @@ rule assembly_quast:
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
 
-rule create_ref_genes_bed:
-    """
-    Create a bed file with reference genes
-    coordinates on the assembly. This will
-    be used to avoid cutting genes when
-    creating genome chunks.
-    """
-    input:
-        paf=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/contigs_against_ref.paf",
-        gff=config['ref_annotation']
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ref_gene.bed"
-    params:
-        ord_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings",
-        ragoo_liftover_script=os.path.join(pipeline_dir,"ragoo_liftover.py"),
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        #python {params.ragoo_liftover_script} {input.gff} {input.paf} {params.ord_dir} {output}
-        touch {output}
-        """
-
 rule prep_chunks:
     """
     Divide assembly into chunks for efficient parallel analysis
     """
     input:
         fasta=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
-        bed=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ref_gene.bed"
     output:
-        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/done"
+        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
     params:
-        split_script=utils_dir + '/split_fasta_records.py',
-        chunks=config['max_jobs']//len(config['samples_info']) - 1,
-        out_dir=config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}",
+        n_chunks=config['max_jobs']//len(config['samples_info']) - 1,
+        out_pref=config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunk",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/split_fasta.yml'
+        CONDA_ENV_DIR + '/faSplit.yml'
     shell:
         """
-        python {params.split_script} {input.fasta} {params.out_dir} {params.chunks} --regions_bed {input.bed}
-        touch {output}
+        chunkSize=`expr $(grep -v '>' {input} | tr -d '\n' | wc | awk '{{print $3}}') / {params.n_chunks}`
+        faSplit gap {input} $chunkSize {params.out_pref} -noGapDrops -minGapSize=10 -lift={output}
         """ 
 
 rule prep_liftover_chunks_tsv:
@@ -323,7 +297,7 @@ rule prep_liftover_chunks_tsv:
     Prepare TSV config for liftover run
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/done"
+        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
     output:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
     params:
@@ -336,7 +310,7 @@ rule prep_liftover_chunks_tsv:
     shell:
         """
         echo "chunk\tpath" > {output}
-        realpath {params.chunks_dir}/*.fasta | awk '{{n=split($0,a,"/"); sub(".yml","",a[n]); print a[n]"\t"$0}}' >> {output}
+        realpath {params.chunks_dir}/*.fa | awk '{{n=split($0,a,"/"); print a[n]"\t"$0}}' >> {output}
         """
 
 rule prep_liftover_yaml:
