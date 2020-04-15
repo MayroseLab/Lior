@@ -46,7 +46,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml 
+localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, require_evidence
 
 rule all:
     input:
@@ -194,6 +194,25 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
+rule index_contigs_fasta:
+    """
+    Index contigs fasta. For later use by RaGOO.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools faidx {input}
+        """
+
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
@@ -208,6 +227,7 @@ rule ref_guided_assembly:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/contigs_against_ref.paf"
     params:
         ragoo_script=config['ragoo_script'],
+        gap_size=config['gap_size'],
         out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
         queue=config['queue'],
         priority=config['priority'],
@@ -220,7 +240,7 @@ rule ref_guided_assembly:
         cd {params.out_dir}
         ln {input.contigs} contigs.fasta
         ln {input.ref_genome} ref.fasta
-        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -g 10
+        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -g {params.gap_size}
         """
 
 rule assembly_busco:
@@ -268,6 +288,27 @@ rule assembly_quast:
     shell:
         """
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
+        """
+
+rule get_contig_borders:
+    """
+    Create bed files with contig borders
+    per chromosome
+    """
+    input:
+        faidx=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai",
+        ordering=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings/{chr}_orderings.txt"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings/{chr}_contig_borders.bed"
+    params:
+        contig_borders_script=config['contig_borders_script'],
+        gap_size=config['gap_size'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        python {params.contig_borders_script} {input.ordering} {input.faidx} {params.gap_size} | paste - <(cut -f1 {input.ordering}) | awk '{{print $1"\t"$2"\t"$3"\t"$4}}' > {output}
         """
 
 rule prep_chunks:
@@ -474,6 +515,123 @@ rule rename_genes:
         map_fasta_ids {params.out_dir}/fasta.map {input.fasta}
         """
 
+rule make_chunks_bed:
+    """
+    Create a bed file containing chunks borders.
+    Useful as part of annotation evidence collection.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        awk '{{print $4"\t"$1"\t"$1+$3"\t"$2}}' {input} > {output}
+        """
+
+rule convert_chunks_to_chromosomes:
+    """
+    Convert gff coordinates and sequence names
+    to transform from chunks to chromosomes
+    """
+    input:
+        genes=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff",
+        all_=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff",
+        bed=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+    output:
+        genes_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.gff",
+        all_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.chr.gff"
+    params:
+        convert_script=os.path.join(utils_dir,"transform_gff_coordinates.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.convert_script} {input.genes} {input.bed} {output.genes_out}
+        python {params.convert_script} {input.all_} {input.bed} {output.all_out}
+        """
+
+rule make_evidence_gffs:
+    """
+    Extract evidence features from MAKER gff.
+    Useful as part of annotation evidence collection.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.chr.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.augustus.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.blastn.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.blastx.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.est2genome.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.pred_gff:maker.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff"
+    params:
+        split_gff_script=os.path.join(utils_dir,"split_gff_by_source.py"),
+        out_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.split_gff_script} {input} augustus,blastn,blastx,est2genome,pred_gff:maker,protein2genome {params.out_dir} 
+        """
+
+###
+chromosomes = ['Chr0']
+with open(config['ref_genome']) as f:
+    for line in f:
+        if line.startswith('>'):
+            chromosomes.append(line.strip().split()[0].replace('>',''))
+###
+
+rule make_contigs_bed:
+    """
+    Create a bed file with original contig borders.
+    Useful as part of annotation evidence collection.
+    """
+    input:
+        expand(config["out_dir"] + "/per_sample/{{sample}}/RG_assembly_{{ena_ref}}/ragoo_output/orderings/{chrom}_contig_borders.bed", chrom=chromosomes)
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/contigs.bed"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cat {input} > {output}
+        """
+
+rule require_evidence:
+    """
+    This rule just ensures that all
+    annotation evidence are collected
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/contigs.bed",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.augustus.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.blastn.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.blastx.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.est2genome.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.pred_gff:maker.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        touch {output}
+        """
+
 rule filter_annotation:
     """
     Remove unreliable annotations
@@ -548,7 +706,8 @@ rule prep_for_orthofinder:
     matching genome names.
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
+        ev=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done",
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
     output:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta"
     params:
@@ -558,7 +717,7 @@ rule prep_for_orthofinder:
         logs_dir=LOGS_DIR
     shell:
         """
-        sed 's/ protein .*//' {input} > {output}
+        sed 's/ protein .*//' {input.fasta} > {output}
         """
 
 rule remove_ref_alt_splicing:
