@@ -35,5 +35,5 @@ with open(in_gff) as f:
       if line_source in file_handles:
         print(line, file=file_handles[line_source])
 
-for fh in file_handles:
+for fh in file_handles.values():
   fh.close()

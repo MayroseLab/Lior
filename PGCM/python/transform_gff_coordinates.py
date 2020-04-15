@@ -1,14 +1,20 @@
 """
-Takes a gff file, where record names have the form
-X__start-end and converts to record name X with start
-and end columns adjusted.
-This is useful when merging split gff files.
+Takes a gff file and a bed file which allows
+conversion of sequence names and coordinates
 """
 from __future__ import print_function
 import sys
 
 in_gff = sys.argv[1]
-out_gff = sys.argv[2]
+in_bed = sys.argv[2]
+out_gff = sys.argv[3]
+
+# parse bed file
+chunks = {}
+with open(in_bed) as f:
+  for line in f:
+    fields = line.strip().split('\t')
+    chunks[fields[3]] = [fields[0], int(fields[1])]
 
 with open(in_gff) as f, open(out_gff,'w') as fo:
   for line in f:
@@ -22,14 +28,13 @@ with open(in_gff) as f, open(out_gff,'w') as fo:
       continue
     if fields[2] == "contig":
       continue
-    if '__' not in fields[0]:
+    rec_name = fields[0]
+    if rec_name not in chunks:
       print(line,file=fo)
       continue
-    rec_name_with_coords = fields[0]
-    rec_name_split = fields[0].split('__')
-    real_rec_name = rec_name_split[0]
-    start_on_real_rec = int(rec_name_split[1].split('-')[0])
+    real_rec_name = chunks[rec_name][0]
+    real_rec_start = chunks[rec_name][1]
     fields[0] = real_rec_name
-    fields[3] = str(int(fields[3]) + start_on_real_rec)
-    fields[4] = str(int(fields[4]) + start_on_real_rec)
+    fields[3] = str(int(fields[3]) + real_rec_start - 1)
+    fields[4] = str(int(fields[4]) + real_rec_start - 1)
     print('\t'.join(fields), file=fo)

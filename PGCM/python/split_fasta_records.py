@@ -15,7 +15,7 @@ from intervaltree import IntervalTree
 
 parser = argparse.ArgumentParser()
 parser.add_argument('in_fasta', help="input_fasta file")
-parser.add_argument('out', help="Output fasta or output dir (in break mode)")
+parser.add_argument('out', help="Output dir")
 parser.add_argument('n_chunks', help="number of files to split into", type=int)
 parser.add_argument('--no_breaks', action="store_true", default=False, help="Do not break records" )
 parser.add_argument('--regions_bed', help="Bed file defining regions that shouldn't be broken")
@@ -24,6 +24,7 @@ args = parser.parse_args()
 records = list(SeqIO.parse(args.in_fasta,'fasta'))
 total_len = sum([len(rec) for rec in records])
 len_per_chunk = total_len/args.n_chunks
+out_chunks_bed = args.out + '/chunks.bed'
 
 if args.regions_bed:
   regions = {}
