@@ -172,6 +172,7 @@ rule genome_assembly:
         """
         spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired} --threads {params.ppn}
         """
+
 rule filter_contigs:
     """
     Discard contigs shorter than L or with coverage lower than C (L, C given by user)
@@ -224,7 +225,7 @@ rule ref_guided_assembly:
         ref_genome=config['ref_genome']
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/contigs_against_ref.paf"
+        directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings")
     params:
         ragoo_script=config['ragoo_script'],
         gap_size=config['gap_size'],
@@ -288,27 +289,6 @@ rule assembly_quast:
     shell:
         """
         quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
-        """
-
-rule get_contig_borders:
-    """
-    Create bed files with contig borders
-    per chromosome
-    """
-    input:
-        faidx=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai",
-        ordering=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings/{chr}_orderings.txt"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings/{chr}_contig_borders.bed"
-    params:
-        contig_borders_script=config['contig_borders_script'],
-        gap_size=config['gap_size'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    shell:
-        """
-        python {params.contig_borders_script} {input.ordering} {input.faidx} {params.gap_size} | paste - <(cut -f1 {input.ordering}) | awk '{{print $1"\t"$2"\t"$3"\t"$4}}' > {output}
         """
 
 rule prep_chunks:
@@ -467,7 +447,8 @@ rule maker_annotation:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff"
     params:
         run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
         queue=config['queue'],
@@ -581,30 +562,25 @@ rule make_evidence_gffs:
         python {params.split_gff_script} {input} augustus,blastn,blastx,est2genome,pred_gff:maker,protein2genome {params.out_dir} 
         """
 
-###
-chromosomes = ['Chr0']
-with open(config['ref_genome']) as f:
-    for line in f:
-        if line.startswith('>'):
-            chromosomes.append(line.strip().split()[0].replace('>',''))
-###
-
 rule make_contigs_bed:
     """
     Create a bed file with original contig borders.
     Useful as part of annotation evidence collection.
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{{sample}}/RG_assembly_{{ena_ref}}/ragoo_output/orderings/{chrom}_contig_borders.bed", chrom=chromosomes)
+        ord_dir=directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings"),
+        faidx=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/contigs.bed"
     params:
+        ragoo_contigs_script=os.path.join(pipeline_dir,"ragoo_ordering_to_bed.py"),
+        gap_size=config['gap_size'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        cat {input} > {output}
+        python {params.ragoo_contigs_script} {input.ord_dir} {input.faidx} {params.gap_size} {output}
         """
 
 rule require_evidence:
