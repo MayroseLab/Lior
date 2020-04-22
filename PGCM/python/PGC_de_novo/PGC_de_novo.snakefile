@@ -297,6 +297,7 @@ rule prep_chunks:
     """
     input:
         fasta=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        busco=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/run_BUSCO/short_summary_BUSCO.txt"
     output:
         config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
     params:
