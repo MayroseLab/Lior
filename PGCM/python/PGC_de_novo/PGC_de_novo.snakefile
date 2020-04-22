@@ -225,7 +225,7 @@ rule assembly_quast:
     output:
         config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
     params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST",
+        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -246,7 +246,6 @@ rule ref_guided_assembly:
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['ref_genome'],
-        assembly_report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
         directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings")
@@ -521,11 +520,11 @@ rule convert_chunks_to_chromosomes:
     to transform from chunks to chromosomes
     """
     input:
-        genes=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff",
+        genes=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff",
         all_=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff",
         bed=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
     output:
-        genes_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.gff",
+        genes_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.chr.gff",
         all_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.chr.gff"
     params:
         convert_script=os.path.join(utils_dir,"transform_gff_coordinates.py"),
@@ -597,7 +596,8 @@ rule require_evidence:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.est2genome.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.pred_gff:maker.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff",
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed",
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
     params:
@@ -611,25 +611,70 @@ rule require_evidence:
 
 rule filter_annotation:
     """
-    Remove unreliable annotations
+    Remove unreliable genes from gff.
+    These are genes that do NOT come from
+    lift-over AND have AED > X (set by user)
     """
     input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+    output:
+        lst=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.list",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff"
+    params:
+        max_aed=config['max_aed'],
+        filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\n"c[2])}}' {input} > {output.lst}
+        python {params.filter_gff_script} {input} {output.lst} {output.gff}
+        """
+
+rule filter_proteins:
+    """
+    Filter proteins fasta according to filtered gff  
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff",
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
         fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
     params:
-        filter_script=utils_dir + '/filter_by_aed.py',
-        max_aed=config['max_aed'],
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
+        CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_script} {input.fasta} {params.max_aed} {output}
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
+
+#rule filter_annotation:
+#    """
+#    Remove unreliable annotations
+#    """
+#    input:
+#        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+#        fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
+#    output:
+#        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
+#    params:
+#        filter_script=utils_dir + '/filter_by_aed.py',
+#        max_aed=config['max_aed'],
+#        queue=config['queue'],
+#        priority=config['priority'],
+#        logs_dir=LOGS_DIR
+#    conda:
+#        CONDA_ENV_DIR + '/snakemake.yml'
+#    shell:
+#        """
+#        python {params.filter_script} {input.fasta} {params.max_aed} {output}
+#        """
 
 rule prevent_duplicate_names:
     """
