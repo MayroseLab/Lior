@@ -214,6 +214,29 @@ rule index_contigs_fasta:
         samtools faidx {input}
         """
 
+rule assembly_quast:
+    """
+    Run QUAST on assembly to get assembly stats and QA
+    """
+    input:
+        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
+    params:
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/quast.yml'
+    shell:
+        """
+        quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
+        """
+
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
@@ -222,7 +245,8 @@ rule ref_guided_assembly:
     """
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
-        ref_genome=config['ref_genome']
+        ref_genome=config['ref_genome'],
+        assembly_report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
         directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings")
@@ -265,30 +289,6 @@ rule assembly_busco:
         """
         cd {params.assembly_dir}
         run_busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
-        """
-
-rule assembly_quast:
-    """
-    Run QUAST on assembly to get assembly stats and QA
-    """
-    input:
-        assembly=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
-        r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
-        r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/QUAST",
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn']
-    conda:
-        CONDA_ENV_DIR + '/quast.yml'
-    shell:
-        """
-        quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
 
 rule prep_chunks:
