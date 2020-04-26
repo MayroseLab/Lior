@@ -582,10 +582,10 @@ rule make_contigs_bed:
         python {params.ragoo_contigs_script} {input.ord_dir} {input.faidx} {params.gap_size} {output}
         """
 
-rule require_evidence:
+rule index_evidence_gff:
     """
-    This rule just ensures that all
-    annotation evidence are collected
+    Sort, compress and index (tabix)
+    evidence gffs for easy display in IGV
     """
     input:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/contigs.bed",
@@ -601,11 +601,16 @@ rule require_evidence:
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
     params:
+        evidence_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/index_gff.yml'
     shell:
         """
+        cd {params.evidence_dir}
+        for x in `ls -1 *.gff`; do srt=`echo $x | sed 's/\.gff/\.sort\.gff/'`; bedtools sort -i $x > $srt; bgzip $srt; tabix $srt.gz; done
         touch {output}
         """
 
@@ -628,7 +633,7 @@ rule filter_annotation:
         logs_dir=LOGS_DIR
     shell:
         """
-        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\n"c[2])}}' {input} > {output.lst}
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input} > {output.lst}
         python {params.filter_gff_script} {input} {output.lst} {output.gff}
         """
 
