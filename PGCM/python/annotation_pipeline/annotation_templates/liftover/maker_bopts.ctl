@@ -1,7 +1,7 @@
 #-----BLAST and Exonerate Statistics Thresholds
 blast_type=ncbi+ #set to 'ncbi+', 'ncbi' or 'wublast'
 
-pcov_blastn=0.8 #Blastn Percent Coverage Threhold EST-Genome Alignments
+pcov_blastn=0.7 #Blastn Percent Coverage Threhold EST-Genome Alignments
 pid_blastn=0.85 #Blastn Percent Identity Threshold EST-Genome Aligments
 eval_blastn=1e-10 #Blastn eval cutoff
 bit_blastn=40 #Blastn bit cutoff
