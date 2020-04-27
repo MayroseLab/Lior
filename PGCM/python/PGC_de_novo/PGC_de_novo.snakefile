@@ -434,7 +434,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} pred_gff={input.liftover_gff} augustus_species={params.augustus_species} >> {output}
+        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} maker_gff={input.liftover_gff} augustus_species={params.augustus_species} >> {output}
         """
 
 rule maker_annotation:
