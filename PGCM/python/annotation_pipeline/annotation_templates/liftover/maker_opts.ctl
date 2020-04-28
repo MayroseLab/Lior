@@ -67,7 +67,7 @@ keep_preds=0 #Concordance threshold to add unsupported gene prediction (bound by
 split_hit=10000 #length for the splitting of hits (expected max intron size for evidence alignments)
 single_exon=1 #consider single exon EST evidence when generating annotations, 1 = yes, 0 = no
 single_length=250 #min length required for single exon ESTs if 'single_exon is enabled'
-correct_est_fusion=1 #limits use of ESTs in annotation to avoid fusion genes
+correct_est_fusion=0 #limits use of ESTs in annotation to avoid fusion genes
 
 tries=3 #number of times to try a contig if there is a failure for some reason
 clean_try=0 #remove all data from previous run before retrying, 1 = yes, 0 = no
