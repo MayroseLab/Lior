@@ -621,7 +621,8 @@ rule filter_annotation:
     lift-over AND have AED > X (set by user)
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+        gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
     output:
         lst=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.list",
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff"
@@ -633,8 +634,8 @@ rule filter_annotation:
         logs_dir=LOGS_DIR
     shell:
         """
-        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input} > {output.lst}
-        python {params.filter_gff_script} {input} {output.lst} {output.gff}
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
+        python {params.filter_gff_script} {input.gff} {output.lst} {output.gff}
         """
 
 rule filter_proteins:
@@ -658,28 +659,6 @@ rule filter_proteins:
         """
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
-
-#rule filter_annotation:
-#    """
-#    Remove unreliable annotations
-#    """
-#    input:
-#        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
-#        fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
-#    output:
-#        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
-#    params:
-#        filter_script=utils_dir + '/filter_by_aed.py',
-#        max_aed=config['max_aed'],
-#        queue=config['queue'],
-#        priority=config['priority'],
-#        logs_dir=LOGS_DIR
-#    conda:
-#        CONDA_ENV_DIR + '/snakemake.yml'
-#    shell:
-#        """
-#        python {params.filter_script} {input.fasta} {params.max_aed} {output}
-#        """
 
 rule prevent_duplicate_names:
     """
