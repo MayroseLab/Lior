@@ -338,13 +338,13 @@ rule prep_liftover_yaml:
     Prepare yml config for liftover run
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
+        chunks=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
+        liftover_transcripts=config["out_dir"] + "/all_samples/" + config['ref_name'] + '.longest_transcripts.fasta',
     output:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/liftover.yml"
     params:
         liftover_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}",
         templates_dir=config["liftover_config_templates"],
-        liftover_transcripts=config['liftover_transcripts'],
         repeats_library=config['repeats_library'],
         queue=config['queue'],
         priority=config['priority'],
@@ -359,7 +359,7 @@ rule prep_liftover_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={params.liftover_transcripts} rmlib={params.repeats_library} >> {output}
+        echo config_kv_pairs: est={input.liftover_transcripts} rmlib={params.repeats_library} >> {output}
         """
 
 rule maker_liftover:
@@ -759,6 +759,30 @@ rule get_ref_proteins:
         gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
         config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        name_attribute=config['name_attribute'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        """
+
+rule get_ref_transcripts:
+    """
+    Filter reference transcripts according
+    to filtered gff. These transcripts will
+    be used for liftover.
+    """
+    input:
+        fasta=config['liftover_transcripts'],
+        gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+    output:
+        config["out_dir"] + "/all_samples/" + config['ref_name'] + '.longest_transcripts.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         name_attribute=config['name_attribute'],
