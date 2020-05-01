@@ -22,6 +22,8 @@ with open(in_gff) as f, open(out_gff, 'w') as fo:
     if line.startswith('#'):
       print(line, file=fo)
       continue
-    attr = {k.split('=')[0]: k.split('=')[1] for k in line.split('\t')[8].split(';')[:-1]}
+    if line.endswith(';'):
+      line = line[:-1]
+    attr = {k.split('=')[0]: k.split('=')[1] for k in line.split('\t')[8].split(';')}
     if attr['ID'] in ids_list or ('Parent' in attr and attr['Parent'] in ids_list):
       print(line, file=fo)
