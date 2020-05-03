@@ -338,8 +338,8 @@ rule prep_liftover_yaml:
     Prepare yml config for liftover run
     """
     input:
-        chunks=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
-        liftover_transcripts=config["out_dir"] + "/all_samples/" + config['ref_name'] + '.longest_transcripts.fasta',
+        chunks=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv",
+        liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
     output:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/liftover.yml"
     params:
@@ -352,7 +352,7 @@ rule prep_liftover_yaml:
     shell:
         """
         echo "name: MAKER_wrapper" >> {output}
-        echo "chunks_info_file: {input}" >> {output}
+        echo "chunks_info_file: {input.chunks}" >> {output}
         echo "out_dir: {params.liftover_dir}" >> {output}
         echo "config_templates: {params.templates_dir}" >> {output}
         echo "queue: {params.queue}" >> {output}
@@ -369,7 +369,8 @@ rule maker_liftover:
     input:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/liftover.yml"
     output:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff"
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta"
     params:
         run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
         queue=config['queue'],
@@ -434,7 +435,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} maker_gff={input.liftover_gff} augustus_species={params.augustus_species} >> {output}
+        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} >> {output}
         """
 
 rule maker_annotation:
@@ -465,14 +466,96 @@ rule maker_annotation:
         snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
+rule get_novel_genes:
+    """
+    Fetch only genes not overlapping with
+    liftover genes
+    """
+    input:
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+    output:
+        not_liftover_list=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/not_liftover.list",
+        not_liftover_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+    params:
+        filter_script=os.path.join(utils_dir,"filter_gff_by_id_list.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/index_gff.yml'
+    shell:
+        """
+        bedtools intersect -a {input.annotation_gff} -b {input.liftover_gff} -v | awk '$3 == "gene" || $3 == "mRNA" {{split($9,a,";"); split(a[1],b,"="); print b[2]}}' > {output.not_liftover_list}
+        python {params.filter_script} {input.annotation_gff} {output.not_liftover_list} {output.not_liftover_gff}
+        """
+
+rule get_novel_proteins:
+    """
+    Fetch proteins selected in the novel gff
+    """
+    input:
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        """
+
+rule combine_liftover_with_novel_gff:
+    """
+    Combine liftover genes with novel genes
+    """
+    input:
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        module load miniconda/miniconda2-4.5.4-MakerMPI
+        gff3_merge {input.liftover_gff} {input.novel_gff} -s > {output}
+        """
+
+rule combine_liftover_with_novel_proteins:
+    """
+    Combine liftover proteins with novel proteins
+    """
+    input:
+        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta",
+        novel_fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cat {input.liftover_fasta} {input.novel_fasta} > {output}
+        """
+
 rule rename_genes:
     """
     Assign genes short, unique names (gff and fasta).
     Names consist of the genome name and a unique ID.
     """
     input:
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.raw_names.fasta",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.raw_names.gff",
@@ -622,7 +705,7 @@ rule filter_annotation:
     """
     input:
         gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
     output:
         lst=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.list",
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff"
@@ -634,7 +717,7 @@ rule filter_annotation:
         logs_dir=LOGS_DIR
     shell:
         """
-        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[1] ~ /pred_gff/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[4] ~ /est2genome/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
         python {params.filter_gff_script} {input.gff} {output.lst} {output.gff}
         """
 
@@ -644,7 +727,7 @@ rule filter_proteins:
     """
     input:
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff",
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
         fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
@@ -755,6 +838,7 @@ rule get_ref_proteins:
     in orthofinder dir.
     """
     input:
+        trans=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta',
         fasta=config['ref_proteins'],
         gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
@@ -782,7 +866,7 @@ rule get_ref_transcripts:
         fasta=config['liftover_transcripts'],
         gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
-        config["out_dir"] + "/all_samples/" + config['ref_name'] + '.longest_transcripts.fasta'
+        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         name_attribute=config['name_attribute'],
