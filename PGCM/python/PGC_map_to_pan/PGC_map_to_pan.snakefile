@@ -661,7 +661,7 @@ rule get_ref_proteins:
     """
     input:
         fasta=config['reference_proteins'],
-        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff'
     output:
         config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '.fasta'
     params:
