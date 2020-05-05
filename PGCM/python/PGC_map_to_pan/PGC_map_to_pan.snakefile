@@ -382,17 +382,16 @@ rule prep_annotation_chunks:
     output:
         config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
     params:
-        split_script=utils_dir + '/split_fasta_records.py',
         chunks=config['max_jobs'] - 1,
         out_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
+        CONDA_ENV_DIR + '/faSplit.yml'
     shell:
         """
-        python {params.split_script} {input} {params.out_dir} {params.chunks}
+        faSplit sequence {input} {params.chunks} {params.out_dir}/chunk
         touch {output}
         """ 
 
@@ -414,7 +413,7 @@ rule prep_annotation_chunks_tsv:
     shell:
         """
         echo "chunk\tpath" > {output}
-        realpath {params.chunks_dir}/*.fasta | awk '{{n=split($0,a,"/"); sub(".yml","",a[n]); print a[n]"\t"$0}}' >> {output}
+        realpath {params.chunks_dir}/*.fa | awk '{{n=split($0,a,"/"); sub(".yml","",a[n]); print a[n]"\t"$0}}' >> {output}
         """
 
 rule prep_annotation_yaml:
