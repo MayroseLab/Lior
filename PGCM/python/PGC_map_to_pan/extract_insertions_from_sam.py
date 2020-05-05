@@ -20,7 +20,7 @@ for aln in sam:
     continue
   start = 0
   for ct in cigar_tuples:
-    if ct[0] == 1 and ct[1] > min_insert:	# insertion (I) operation
+    if ct[0] == 1 and ct[1] > min_insert and aln.query_sequence:	# insertion (I) operation
       insert_seq = aln.query_sequence[start:start+ct[1]]
       seq_name = "%s_%s_insert" %(aln.query_name, start)
       print('>%s' % seq_name)
