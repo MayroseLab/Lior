@@ -34,7 +34,9 @@ Script arguments:
          by Orthofinder 2.3.8
 2. Weight field - what stat should be used to assign
    edge weights. Usually bitscore or pident.
-3. Output file - path to output file. The format is
+3. Allow gene copies (0 or 1) - if 1, then use gene trees
+   to cluster recent gene copies together
+4. Output file - path to output file. The format is
    one line per cluster, with cluster members separated
    by tabs.
 """
@@ -418,7 +420,8 @@ def create_orthofinder_line(graph, genomes_order):
 if __name__ == "__main__":
   orthofinder_dir = sys.argv[1]
   weight_field = sys.argv[2] # e.g. pident, bitscore
-  orthogroups_out = sys.argv[3]
+  allow_gene_copies = bool(int(sys.argv[3]))
+  orthogroups_out = sys.argv[4]
   
   # create orthologs DB
   db_path = create_orthology_db(orthofinder_dir)
@@ -448,7 +451,7 @@ if __name__ == "__main__":
         hc = HomologyCluster(genomes, line)
       if hc.has_paralogs and len(hc.nodes) > 3:
         hc.add_edges(con)
-        orthogroups = hc.break_mwop(tree, allow_gene_copies=True)
+        orthogroups = hc.break_mwop(tree, allow_gene_copies=allow_gene_copies)
       else:
         orthogroups = [hc]
       for og_break in orthogroups:

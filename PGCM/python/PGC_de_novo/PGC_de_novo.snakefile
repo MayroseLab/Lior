@@ -930,7 +930,7 @@ rule break_orthogroups_MWOP:
         CONDA_ENV_DIR + '/break_orthogroups.yml'
     shell:
         """
-        python {params.mwop_script} {params.orthofinder_dir} bitscore {output}
+        python {params.mwop_script} {params.orthofinder_dir} bitscore 1 {output}
         """
 
 rule create_PAV_matrix:
