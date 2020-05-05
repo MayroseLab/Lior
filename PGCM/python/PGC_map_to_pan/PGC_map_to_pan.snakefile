@@ -522,7 +522,7 @@ rule filter_annotation:
         CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
-        python {params.filter_script} {input.fasta} {params.max_aed} {output}
+        python {params.filter_script} {input.fasta} {input.fasta_map} {params.max_aed} {output}
         """
 
 rule prevent_duplicate_names:
