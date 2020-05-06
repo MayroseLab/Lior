@@ -188,5 +188,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=300
         """
