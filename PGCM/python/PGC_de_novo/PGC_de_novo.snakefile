@@ -400,6 +400,32 @@ rule maker_liftover:
         snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
             """
 
+rule remove_multi_liftovers:
+    """
+    In cases a reference gene was lifted-over
+    multiple times, only keep one gene - remove
+    all others from gff and fasta
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta"
+    output:
+        gff_nomulti=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
+        fasta_nomulti=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins_no_multi.fasta"
+    params:
+        gff_script=os.path.join(utils_dir,"remove_multi_liftover_from_gff.py"),
+        fasta_script=os.path.join(utils_dir,"remove_multi_liftover_from_fasta.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.gff_script} {input.gff} {output.gff_nomulti}
+        python {params.fasta_script} {input.fasta} {output.fasta_nomulti}
+        """
+
 rule prep_annotation_chunks_tsv:
     """
     Prepare TSV config for annotation run
@@ -452,8 +478,8 @@ rule prep_annotation_yaml:
 
 rule maker_annotation:
     """
-    Run MAKER using liftover results + evidence
-    to obtain a full genome annotation
+    Run MAKER using evidence and ab-initio
+    to obtain gene models on top of the liftover
     """
     input:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
@@ -484,7 +510,7 @@ rule get_novel_genes:
     liftover genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
         annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
     output:
         not_liftover_list=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/not_liftover.list",
@@ -528,7 +554,7 @@ rule combine_liftover_with_novel_gff:
     Combine liftover genes with novel genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
         novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
@@ -547,7 +573,7 @@ rule combine_liftover_with_novel_proteins:
     Combine liftover proteins with novel proteins
     """
     input:
-        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta",
+        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins_no_multi.fasta",
         novel_fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta"
