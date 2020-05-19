@@ -24,6 +24,13 @@ def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
                 delimiter='\t', key_name='sample', col_names=['ena_ref'])
+    # load HQ genomes info file
+    config['hq_info'] = SampleInfoReader.sample_table_reader(filename=config['hq_genomes_info_file'],
+                delimiter='\t', key_name='sample', col_names=['annotation_gff','proteins_fasta'])
+    # ensure not duplicate sample names exist
+    all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
+    assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
+
 init()
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = pipeline_dir + "/conda_env"
@@ -57,6 +64,11 @@ rule all:
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
 
+def get_hq_sample_gff(wildcards):
+    return config['hq_info'][wildcards.sample]['annotation_gff']
+
+def get_hq_sample_proteins(wildcards):
+    return config['hq_info'][wildcards.sample]['proteins_fasta']
 
 rule download_fastq:
     """
@@ -798,7 +810,7 @@ rule prep_for_orthofinder:
         ev=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done",
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
     output:
-        config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta"
+        config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta"
     params:
         of_dir=config["out_dir"] + "/all_samples/orthofinder",
         queue=config['queue'],
@@ -842,7 +854,7 @@ rule get_ref_proteins:
         fasta=config['ref_proteins'],
         gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     output:
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         name_attribute=config['name_attribute'],
@@ -854,6 +866,50 @@ rule get_ref_proteins:
     shell:
         """
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        """
+
+rule remove_hq_sample_alt_splicing:
+    """
+    For HQ genome samples, keep only
+    the longest mRNA per gene
+    """
+    input:
+        get_hq_sample_gff
+    output:
+        config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.gff"
+    params:
+        longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.longest_trans_script} {input} {output}
+        """
+
+rule get_hq_sample_proteins:
+    """
+    Filter HQ samples proteins according
+    to filtered gff and put the new file
+    in orthofinder dir.
+    """
+    input:
+        fasta=get_hq_sample_proteins,
+        gff=config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.gff"
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
 rule get_ref_transcripts:
@@ -887,8 +943,9 @@ rule orthofinder:
     initial orthogroups
     """
     input:
-        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '.fasta'
+        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta',
+        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys())
     output:
         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups/Orthogroups.tsv"
     params:
