@@ -13,10 +13,21 @@ from os import remove
 in_gff = sys.argv[1]
 out_gff = sys.argv[2]
 gene_mrna_out = out_gff + '.gene_to_mRNA'
+if len(argv) == 6:
+  proteins_fasta = sys.argv[3]
+  min_len = int(sys.argv[4])
+  name_attribute = sys.argv[5] # mRNA attribute where the protein name is stored (must mastch with fasta)
+else:
+  proteins_fasta = None
 
 db_path = "tmp.sqlite3"
 gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
 gff = gffutils.FeatureDB(db_path)
+
+prot_lens = {}
+if proteins_fasta:
+  # go over fasta and save protein lengths
+  prot_lens = {rec.id: len(rec.seq) for rec in SeqIO.parse(proteins_fasta, "fasta")}
 
 with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
   for feature in gff.all_features():
@@ -36,6 +47,9 @@ with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
       if total_exons_len > max_len:
         max_len = total_exons_len
         longest_transcript = mrna
+    transcript_name = longest_transcript[name_attribute]
+    if transcript_name in prot_lens and prot_lens[transcript_name] < min_len:
+      continue
     print(str(longest_transcript), file=fo)
     print("%s\t%s" %(gene['ID'][0], longest_transcript['ID'][0]),file=fo2)
     for x in gff.children(longest_transcript):
