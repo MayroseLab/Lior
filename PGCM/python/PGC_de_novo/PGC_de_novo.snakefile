@@ -358,6 +358,7 @@ rule prep_liftover_yaml:
         liftover_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}",
         templates_dir=config["liftover_config_templates"],
         repeats_library=config['repeats_library'],
+        min_protein=config['min_protein'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -371,7 +372,7 @@ rule prep_liftover_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={input.liftover_transcripts} rmlib={params.repeats_library} >> {output}
+        echo config_kv_pairs: est={input.liftover_transcripts} rmlib={params.repeats_library} min_protein={params.min_protein} >> {output}
         """
 
 rule maker_liftover:
@@ -460,6 +461,7 @@ rule prep_annotation_yaml:
         proteins=config['proteins'],
         repeats_library=config['repeats_library'],
         augustus_species=config['augustus_species'],
+        min_protein=config['min_protein'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -473,7 +475,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} >> {output}
+        echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} min_protein={params.min_protein} >> {output}
         """
 
 rule maker_annotation:
@@ -854,11 +856,14 @@ rule remove_ref_alt_splicing:
     only keep the longest transcript.
     """
     input:
-        config['ref_annotation']
+        ref_prot=config['ref_proteins'],
+        ref_gff=config['ref_annotation']
     output:
         config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     params:
         longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        min_protein=config['min_protein'],
+        name_attribute=config['name_attribute'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -866,7 +871,7 @@ rule remove_ref_alt_splicing:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.longest_trans_script} {input} {output}
+        python {params.longest_trans_script} {input.gff} {output} {input.fasta} {params.min_protein} {params.name_attribute}
         """
 
 rule get_ref_proteins:
