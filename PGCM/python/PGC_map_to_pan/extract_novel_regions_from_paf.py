@@ -122,4 +122,4 @@ if args.in_gff:
         for f in gff.children(gene):
           print(convert_feature_coords(f, gene_iv.begin, gene_iv.end), file=fo)
 
-remove(db_path)
+  remove(db_path)
