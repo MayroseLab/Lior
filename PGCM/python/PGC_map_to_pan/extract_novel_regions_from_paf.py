@@ -37,40 +37,34 @@ if args.genome_name:
 genome_dict = SeqIO.to_dict(SeqIO.parse(args.in_fasta, "fasta"))
 # create per-chromosome intervals
 # this is used for finding unmapped regions of the query genome
+# initialize by creating full-length chromosome intervals
+# and chop whenerver mapped regions are detected while parsing PAF
 chrom_intervals_dict = { chrom: IntervalTree([Interval(0,len(genome_dict[chrom].seq)-1)]) for chrom in genome_dict }
 
-
 # Read PAF and find novel regions
-out_fasta_records = []
-# keep a dictionary with all novel regions
-out_records_intervals = { c: IntervalTree() for c in genome_dict }
 with PafFile(args.in_paf) as paf:
   for record in paf:
     # if entire scaffold is unmapped
     if record.tname == "*":
-      rec_name = "%s_%s-%s" %(record.qname, 0, record.qlen)
-      rec = SeqRecord(genome_dict[record.qname].seq, id=rec_name, description='')
-      out_fasta_records.append(rec)
-      genome_dict.pop(record.qname)
-      out_records_intervals[record.qname][0:record.qlen] = True
       continue
     # if at least part of the record is mapped
     # chop mapped region from the chromosome interval
-    chrom_intervals_dict[record.qname].chop(record.qstart,record.qend)
-    # fetch CIGAR and use it to extract insertions
+    # fetch CIGAR and use it to extract matched regions
     cigar = str(record.tags["cg"])[5:]
     cigar_tuples = re.findall(r'(\d+)([A-Z]{1})', cigar)
-    start = 0
+    start = record.qstart
     for ct in cigar_tuples:
-      if ct[1] == "I" and int(ct[0]) > args.min_region:
-        insert_seq = genome_dict[record.qname].seq[start:start+int(ct[0])]
-        seq_name = "%s%s_%s-%s" %(args.genome_name, record.qname, start, start+len(insert_seq))
-        insert_rec = SeqRecord(insert_seq, id=seq_name, description='')
-        out_fasta_records.append(insert_rec)
-        out_records_intervals[record.qname][start:start+len(insert_seq)] = True
+      if ct[1] in {"D","N"}:
+        continue
+      if ct[1] == "M":
+        end = start + int(ct[0])
+        chrom_intervals_dict[record.qname].chop(start,end)
       start += int(ct[0])
 
   # now extract all unmapped regions (larger than cutoff)
+  out_fasta_records = []
+  # keep a dictionary with all novel regions
+  out_records_intervals = { c: IntervalTree() for c in genome_dict }
   for chrom in chrom_intervals_dict:
     if chrom not in genome_dict:
       continue
