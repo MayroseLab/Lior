@@ -77,3 +77,6 @@ if __name__ == "__main__":
   os.link(pan_fasta, final_pan)
   final_gff = os.path.join(args.out_dir, "pan_genes.gff")
   os.link(pan_gff, final_gff)
+  # create final non-ref fasta
+  non_ref_fasta = os.path.join(args.out_dir, "final_non_ref.fasta")
+  os.system("cat %s/*_novel.fasta > %s" %(args.out_dir, non_ref_fasta))
