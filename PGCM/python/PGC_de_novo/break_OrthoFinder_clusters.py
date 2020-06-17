@@ -51,6 +51,7 @@ import pandas as pd
 import numpy as np
 from ete3 import Tree
 from itertools import product, chain
+import argparse
 
 def tidy_split(df, column, sep='|', keep=False):
   """
@@ -224,7 +225,7 @@ class HomologyCluster(nx.Graph):
   present
   """
 
-  def __init__(self, genomes, og_line, gene_tree=None):
+  def __init__(self, genomes, og_line, gene_tree=None, ref_genome_name=None):
     """
     Create an edge-less graph object, containing
     cluster genes as nodes with protin name as
@@ -236,6 +237,8 @@ class HomologyCluster(nx.Graph):
               file
     gene_tree - path to newick file with single
               gene tree of group genes
+    ref_genome_name - relevant when using exclude_ref
+              in break_mwop
     """
     nx.Graph.__init__(self)
     self.has_paralogs = False
@@ -249,15 +252,23 @@ class HomologyCluster(nx.Graph):
         self.has_paralogs = True
       for gene in genes_list:
         self.add_node(gene, genome=genome, gene_name=gene)
+
+    self.ref_genome_name = ref_genome_name
+    if ref_genome_name:
+      assert ref_genome_name in genomes, "Unknown reference genome %s" % ref_genome_name
+
     self.gene_tree = None
     if gene_tree:
       gene_tree = Tree(gene_tree, format=1)
       # remove genome names from tree leaves
+      # but keep it as another attribute
+      genomes = {gene : self.nodes[gene]["genome"] for gene in self}
       for leaf in gene_tree:
         for n in self.nodes:
           if leaf.name.endswith(n):
             leaf.name = n
             break
+        leaf.add_features(genome=genomes.get(leaf.name, "none"))
       self.gene_tree = gene_tree
 
   def add_edges(self, db_con):
@@ -274,7 +285,7 @@ class HomologyCluster(nx.Graph):
     df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), con)
     df.apply(lambda g: self.add_edge(g['prot1'], g['prot2'], weight=g['weight']), axis=1)
 
-  def break_mwop(self, tree, allow_gene_copies=False):
+  def break_mwop(self, tree, allow_gene_copies="No"):
     """
     Break a homology group into orthogroups
     where all proteins are orthologous to
@@ -291,6 +302,8 @@ class HomologyCluster(nx.Graph):
     """
     eps = 0.001
     tree = tree.copy()
+    if allow_gene_copies == "No":
+      allow_gene_copies = False
 
     # initialize gene sets
     genomes = [self.nodes[g]['genome'] for g in self.nodes]
@@ -299,21 +312,20 @@ class HomologyCluster(nx.Graph):
       genome = self.nodes[gene]['genome']
       V[genome].append(set([gene]))
     # if allow_gene_copies mode is on, use gene tree
-    # to cluster recent gene copies together
+    # to cluster recent gene copies together by searching
+    # for monophyletic groups (from the same genome)
     if allow_gene_copies and self.gene_tree:
-      # create a list of all sister genes
-      sisters = set()
-      for g in self.gene_tree:  # g is a leaf (gene)
-        sis = g.get_sisters()
-        for s in sis:
-          if s.is_leaf() and (s.name,g.name) not in sisters:
-            sisters.add((g.name,s.name))
-      # only keep sister pairs from the same genome
-      gene_copies = set()
-      for sis_pair in sisters:
-        if self.nodes[sis_pair[0]]['genome'] == self.nodes[sis_pair[1]]['genome']:
-          gene_copies.add(sis_pair)
+      all_genomes = set([gene.genome for gene in self.gene_tree])
+      if allow_gene_copies == "exclude_ref" and self.ref_genome_name:
+        all_genomes.remove(self.ref_genome_name)
+      gene_copies = []
+      for genome in all_genomes:
+        for node in self.gene_tree.get_monophyletic(values=[genome], target_attr="genome"):
+          if not node.is_leaf():
+            gene_copies.append([gene.name for gene in node.get_leaves()])
+
       # create sets of gene copies and remove single-gene sets
+      # all genes in gene copies groups:
       rm = set(chain.from_iterable(gene_copies))
       for genome in V:
         new_Vi = []
@@ -418,25 +430,31 @@ def create_orthofinder_line(graph, genomes_order):
     return '\t'.join([graph.orthogroup] + [', '.join(d[genome]) for genome in genomes_order])
 
 if __name__ == "__main__":
-  orthofinder_dir = sys.argv[1]
-  weight_field = sys.argv[2] # e.g. pident, bitscore
-  allow_gene_copies = bool(int(sys.argv[3]))
-  orthogroups_out = sys.argv[4]
-  
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('orthofinder_dir', help='Path to orthofinder results dir')
+  parser.add_argument('weight_field', choices=['pident','bitscore'], help='Blast field to use as edges weight')
+  parser.add_argument('--allow_gene_copies', default="No", choices=['No','all','exclude_ref'], help='all - cluster monophyletic genes for any genome; exclude_ref - cluster for any genome except ref genome; No - do not cluster')
+  parser.add_argument('--ref_genome_name', default=None, help='Name of reference genome')
+  parser.add_argument('orthogroups_out', help='Path to output TSV')
+  args = parser.parse_args()
+  if args.allow_gene_copies == "exclude_ref":
+    assert args.ref_genome_name, "Must specify --ref_genome_name when using --allow_gene_copies exclude_ref"
+
   # create orthologs DB
-  db_path = create_orthology_db(orthofinder_dir)
+  db_path = create_orthology_db(args.orthofinder_dir, weight_field=args.weight_field)
   con = sql.connect(db_path)
 
   # species tree
-  tree_file = os.path.join(orthofinder_dir, "Species_Tree", 'SpeciesTree_rooted_node_labels.txt')
+  tree_file = os.path.join(args.orthofinder_dir, "Species_Tree", 'SpeciesTree_rooted_node_labels.txt')
   tree = Tree(tree_file, format=1)
 
   # Calculate orthogroups
-  orthogroups_file = os.path.join(orthofinder_dir, 'Orthogroups', 'Orthogroups.tsv')
-  gene_trees_dir = os.path.join(orthofinder_dir, 'Resolved_Gene_Trees')
-  unassigned_file = os.path.join(orthofinder_dir, 'Orthogroups', 'Orthogroups_UnassignedGenes.tsv') # single-gene OGs
+  orthogroups_file = os.path.join(args.orthofinder_dir, 'Orthogroups', 'Orthogroups.tsv')
+  gene_trees_dir = os.path.join(args.orthofinder_dir, 'Resolved_Gene_Trees')
+  unassigned_file = os.path.join(args.orthofinder_dir, 'Orthogroups', 'Orthogroups_UnassignedGenes.tsv') # single-gene OGs
 
-  with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(orthogroups_out, 'w') as fo:
+  with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(args.orthogroups_out, 'w') as fo:
     all_lines = f1.readlines() + f2.readlines()[1:]
     header = all_lines.pop(0).strip()
     print(header, file=fo)
@@ -446,12 +464,12 @@ if __name__ == "__main__":
       print(og)
       og_tree = os.path.join(gene_trees_dir,"%s_tree.txt" % og)
       if os.path.isfile(og_tree):
-        hc = HomologyCluster(genomes, line, gene_tree=og_tree)
+        hc = HomologyCluster(genomes, line, gene_tree=og_tree, ref_genome_name=args.ref_genome_name)
       else:
         hc = HomologyCluster(genomes, line)
       if hc.has_paralogs and len(hc.nodes) > 3:
         hc.add_edges(con)
-        orthogroups = hc.break_mwop(tree, allow_gene_copies=allow_gene_copies)
+        orthogroups = hc.break_mwop(tree, allow_gene_copies=args.allow_gene_copies)
       else:
         orthogroups = [hc]
       for og_break in orthogroups:
