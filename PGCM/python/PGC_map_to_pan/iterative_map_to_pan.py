@@ -16,6 +16,7 @@ import sys
 import os
 import csv
 import argparse
+from Bio import SeqIO
 
 if __name__ == "__main__":
 
@@ -30,8 +31,18 @@ if __name__ == "__main__":
   parser.add_argument('--min_len', default=1, type=int, help='Minimal sequence length to add to pan')
   args = parser.parse_args()
 
+  # re-write ref fasta so record
+  # names only include simple IDs
+  ref_recs = SeqIO.parse(args.ref_fasta, "fasta")
+  simp_records = []
+  for rec in ref_recs:
+    rec.description = ''
+    simp_records.append(rec)
+  ref_simp_fasta = os.path.join(args.out_dir, "ref_genome.fasta")
+  SeqIO.write(simp_records, ref_simp_fasta, "fasta")
+
   # initialize
-  pan_fasta = args.ref_fasta
+  pan_fasta = ref_simp_fasta
   pan_gff = args.ref_gff
   pan_proteins = args.ref_proteins
 

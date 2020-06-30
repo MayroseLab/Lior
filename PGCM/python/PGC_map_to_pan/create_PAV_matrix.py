@@ -30,12 +30,9 @@ out_tsv = sys.argv[-1]
 
 samples_pav = []
 for f in in_files:
-  sample_name = os.path.basename(f).split('.')[0]
-  df = pd.read_csv(f)
-  pav_s = df['is_lost'].map({'PRESENT': 1, 'LOST': 0})
-  pav_s.name = sample_name
-  pav_s.index = df['ID']
-  #pav_s.index.rename('gene', inplace=True)
+  df = pd.read_csv(f, sep='\t')
+  pav_s = df.iloc[:,1]
+  pav_s.index = df['Gene']
   samples_pav.append(pav_s)
 
 pav_df = pd.concat(samples_pav, axis=1)
