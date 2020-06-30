@@ -25,15 +25,14 @@ with open(in_bed_cov) as f:
     fields = line.strip().split("\t")
     if fields[0] == "all":
       continue
+    name = fields[3]
+    if name not in cov_dict:
+      cov_dict[name] = 0
     depth = int(fields[4])
     if depth < min_depth:
       continue
-    name = fields[3]
     frac = float(fields[7])
-    if name in cov_dict:
-      cov_dict[name] += frac
-    else:
-      cov_dict[name] = frac
+    cov_dict[name] += frac
 
 print("Gene\t%s" % sample_name)
 for g in cov_dict:
