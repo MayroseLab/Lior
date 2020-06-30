@@ -40,4 +40,5 @@ pav_df[ref_name] = pd.Series(pav_df.index, index=pav_df.index).str.startswith('P
 name_sub_df = pd.read_csv(name_sub_tsv, sep="\t", index_col=0, names=['new_name'])
 pav_df.index = pav_df.apply(lambda row: name_sub_df.loc[row.name]['new_name'] if row.name in name_sub_df.index else row.name, axis=1)
 pav_df.index.rename('gene', inplace=True)
+pav_df = pav_df.astype(int)
 pav_df.to_csv(out_tsv, sep='\t')
