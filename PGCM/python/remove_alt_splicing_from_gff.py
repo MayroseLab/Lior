@@ -3,6 +3,9 @@ Takes a gff file and for genes with
 multiple mRNAs, only keeps the longest
 (largest sum of exon lengths). Prints
 out a new gff.
+If a proteins fasta is also provided,
+removes genes shorter than a given
+cutoff
 """
 
 from __future__ import print_function
@@ -13,7 +16,7 @@ from os import remove
 in_gff = sys.argv[1]
 out_gff = sys.argv[2]
 gene_mrna_out = out_gff + '.gene_to_mRNA'
-if len(argv) == 6:
+if len(sys.argv) == 6:
   proteins_fasta = sys.argv[3]
   min_len = int(sys.argv[4])
   name_attribute = sys.argv[5] # mRNA attribute where the protein name is stored (must mastch with fasta)
@@ -47,9 +50,10 @@ with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
       if total_exons_len > max_len:
         max_len = total_exons_len
         longest_transcript = mrna
-    transcript_name = longest_transcript[name_attribute]
-    if transcript_name in prot_lens and prot_lens[transcript_name] < min_len:
-      continue
+    if proteins_fasta:
+      transcript_name = longest_transcript[name_attribute]
+      if transcript_name in prot_lens and prot_lens[transcript_name] < min_len:
+        continue
     print(str(longest_transcript), file=fo)
     print("%s\t%s" %(gene['ID'][0], longest_transcript['ID'][0]),file=fo2)
     for x in gff.children(longest_transcript):

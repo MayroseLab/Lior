@@ -1,0 +1,9 @@
+name: extract_novel_
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - intervaltree
+  - biopython
+  - pafpy
+  - gffutils

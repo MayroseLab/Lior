@@ -63,8 +63,6 @@ with PafFile(args.in_paf) as paf:
 
   # now extract all unmapped regions (larger than cutoff)
   out_fasta_records = []
-  # keep a dictionary with all novel regions
-  out_records_intervals = { c: IntervalTree() for c in genome_dict }
   for chrom in chrom_intervals_dict:
     if chrom not in genome_dict:
       continue
@@ -75,7 +73,6 @@ with PafFile(args.in_paf) as paf:
         unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, iv.begin, iv.begin+len(unmapped_seq))
         unmapped_rec = SeqRecord(unmapped_seq, id=unmapped_name, description='')
         out_fasta_records.append(unmapped_rec)
-        out_records_intervals[record.qname][iv.begin:iv.begin+len(unmapped_seq)] = True
 
 # Write records to output fasta
 SeqIO.write(out_fasta_records, args.out_fasta, "fasta")
@@ -109,9 +106,9 @@ if args.in_gff:
       seqid = gene.seqid
       gene_start = gene.start
       gene_end = gene.end
-      seqid_intervals = out_records_intervals[seqid]
+      seqid_intervals = chrom_intervals_dict[seqid]
       gene_iv = interval_contains(seqid_intervals, gene_start, gene_end)
-      if gene_iv:      
+      if gene_iv and gene_iv.end - gene_iv.begin > args.min_region:
         print(convert_feature_coords(gene, gene_iv.begin, gene_iv.end), file=fo)
         for f in gff.children(gene):
           print(convert_feature_coords(f, gene_iv.begin, gene_iv.end), file=fo)
