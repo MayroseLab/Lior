@@ -53,7 +53,7 @@ with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
         max_len = total_exons_len
         longest_transcript = mrna
     if proteins_fasta:
-      transcript_name = longest_transcript[name_attribute]
+      transcript_name = longest_transcript[name_attribute][0]
       if transcript_name in prot_lens and prot_lens[transcript_name] < min_len:
         continue
     print(str(longest_transcript), file=fo)
