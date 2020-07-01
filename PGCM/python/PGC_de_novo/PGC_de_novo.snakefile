@@ -274,8 +274,8 @@ rule ref_guided_assembly:
     shell:
         """
         cd {params.out_dir}
-        ln {input.contigs} contigs.fasta
-        ln {input.ref_genome} ref.fasta
+        ln -f {input.contigs} contigs.fasta
+        ln -f {input.ref_genome} ref.fasta
         python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -g {params.gap_size}
         """
 
@@ -302,6 +302,106 @@ rule assembly_busco:
         run_busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
         """
 
+rule prep_liftover:
+    """
+    Prepare directory for transcripts
+    liftover using GAWN
+    """
+    input:
+        genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
+    output:
+        genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta",
+        liftover_transcripts=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/transcriptome.fasta"
+    params:
+        gawn_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        git clone https://github.com/enormandeau/gawn.git {params.gawn_dir}
+        ln {input.genome} {output.genome}
+        ln {input.liftover_transcripts} {output.liftover_transcripts}
+        """
+
+rule GAWN_liftover:
+    """
+    Use GAWN to perform liftover
+    """
+    input:
+        genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta",
+        liftover_transcripts=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/transcriptome.fasta"
+    output:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome.gff3"
+    params:
+        gawn_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/GAWN.yml'
+    shell:
+        """
+        cd {params.gawn_dir}
+        sed -i 's/NCPUS=10/NCPUS={params.ppn}/' 02_infos/gawn_config.sh
+        ./gawn 02_infos/gawn_config.sh
+        """
+
+rule filter_liftover_result:
+    """
+    Remove low quality predictions
+    from liftover results and ensure
+    one gene with one mRNA per
+    ref transcript.
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome.gff3"
+    output:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
+        flist=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.list"
+    params:
+        filter_gawn_script=os.path.join(pipeline_dir,"filter_GAWN_liftover_gff.py"),
+        filter_gff_script=os.path.join(utils_dir,"filter_gff_by_id_list.py"),
+        min_identity=config['min_identity'],
+        max_intron=config['max_intron'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_gawn_script} {input.gff} {params.min_identity} {params.max_intron} > {output.flist}
+        python {params.filter_gff_script} {input.gff} {output.flist} {output.gff}
+        """
+
+rule create_liftover_fasta:
+    """
+    Use liftover gff and genome fasta
+    to create transcripts, cDNA and
+    protein fasta files
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
+        genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta"
+    output:
+        trans=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta",
+        cdna=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_cDNA.fasta",
+        prot=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_proteins.fasta"
+    params:
+        extract_script=utils_dir + '/extract_transcripts_and_proteins_from_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.extract_script} {input.gff} {input.genome} {output.trans} {output.cdna} {output.prot}
+        """
+
 rule prep_chunks:
     """
     Divide assembly into chunks for efficient parallel analysis
@@ -324,14 +424,14 @@ rule prep_chunks:
         faSplit gap {input} $chunkSize {params.out_pref} -noGapDrops -minGapSize=10 -lift={output}
         """ 
 
-rule prep_liftover_chunks_tsv:
+rule prep_annotation_chunks_tsv:
     """
-    Prepare TSV config for liftover run
+    Prepare TSV config for annotation run
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
+        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft" 
     output:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/chunks.tsv"
     params:
         chunks_dir=config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}",
         queue=config['queue'],
@@ -345,112 +445,12 @@ rule prep_liftover_chunks_tsv:
         realpath {params.chunks_dir}/*.fa | awk '{{n=split($0,a,"/"); print a[n]"\t"$0}}' >> {output}
         """
 
-rule prep_liftover_yaml:
-    """
-    Prepare yml config for liftover run
-    """
-    input:
-        chunks=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv",
-        liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
-    output:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/liftover.yml"
-    params:
-        liftover_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}",
-        templates_dir=config["liftover_config_templates"],
-        repeats_library=config['repeats_library'],
-        min_protein=config['min_protein'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        echo "name: MAKER_wrapper" >> {output}
-        echo "chunks_info_file: {input.chunks}" >> {output}
-        echo "out_dir: {params.liftover_dir}" >> {output}
-        echo "config_templates: {params.templates_dir}" >> {output}
-        echo "queue: {params.queue}" >> {output}
-        echo "priority: {params.priority}" >> {output}
-        echo "sample: {wildcards.sample}" >> {output}
-        echo "logs_dir: {params.logs_dir}" >> {output}
-        echo config_kv_pairs: est={input.liftover_transcripts} rmlib={params.repeats_library} min_protein={params.min_protein} >> {output}
-        """
-
-rule maker_liftover:
-    """
-    Run MAKER while only allowing liftover of reference transcripts
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/liftover.yml"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta"
-    params:
-        run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
-        queue=config['queue'],
-        jobs=config['max_jobs']//len(config['samples_info']),
-        liftover_dir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}",
-        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
-        priority=config['priority'],
-        jobscript=utils_dir + '/jobscript.sh',
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
-    shell:
-        """
-        cd {params.liftover_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
-            """
-
-rule remove_multi_liftovers:
-    """
-    In cases a reference gene was lifted-over
-    multiple times, only keep one gene - remove
-    all others from gff and fasta
-    """
-    input:
-        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff",
-        fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins.fasta"
-    output:
-        gff_nomulti=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
-        fasta_nomulti=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins_no_multi.fasta"
-    params:
-        gff_script=os.path.join(utils_dir,"remove_multi_liftover_from_gff.py"),
-        fasta_script=os.path.join(utils_dir,"remove_multi_liftover_from_fasta.py"),
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/gffutils.yml'
-    shell:
-        """
-        python {params.gff_script} {input.gff} {output.gff_nomulti}
-        python {params.fasta_script} {input.fasta} {output.fasta_nomulti}
-        """
-
-rule prep_annotation_chunks_tsv:
-    """
-    Prepare TSV config for annotation run
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/chunks.tsv"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/chunks.tsv"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        cp {input} {output}
-        """
-
 rule prep_annotation_yaml:
     """
     Prepare yml config for annotation run
     """
     input:
         chunks_tsv=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/chunks.tsv",
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
     params:
@@ -512,7 +512,7 @@ rule get_novel_genes:
     liftover genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
         annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
     output:
         not_liftover_list=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/not_liftover.list",
@@ -556,7 +556,7 @@ rule combine_liftover_with_novel_gff:
     Combine liftover genes with novel genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.genes_no_multi.gff",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
         novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
@@ -575,7 +575,7 @@ rule combine_liftover_with_novel_proteins:
     Combine liftover proteins with novel proteins
     """
     input:
-        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/maker.proteins_no_multi.fasta",
+        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_proteins.fasta",
         novel_fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta"
@@ -871,7 +871,7 @@ rule remove_ref_alt_splicing:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.longest_trans_script} {input.gff} {output} {input.fasta} {params.min_protein} {params.name_attribute}
+        python {params.longest_trans_script} {input.ref_gff} {output} {input.ref_prot} {params.min_protein} {params.name_attribute}
         """
 
 rule get_ref_proteins:
