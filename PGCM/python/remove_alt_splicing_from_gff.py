@@ -12,6 +12,8 @@ from __future__ import print_function
 import gffutils
 import sys
 from os import remove
+from time import time
+from Bio import SeqIO
 
 in_gff = sys.argv[1]
 out_gff = sys.argv[2]
@@ -23,7 +25,7 @@ if len(sys.argv) == 6:
 else:
   proteins_fasta = None
 
-db_path = "tmp.sqlite3"
+db_path = "tmp_%s.sqlite3" % time()
 gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
 gff = gffutils.FeatureDB(db_path)
 
