@@ -936,6 +936,24 @@ rule detect_LQ_PAV:
         python {params.detect_pav_script} {input} {params.min_depth} {params.min_frac_covered} {wildcards.sample}_{wildcards.ena_ref} > {output}
         """
 
+rule create_ref_genes_list:
+    """
+    Create a file containing the
+    reference mRNAs list
+    """
+    input:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff.gene_to_mRNA'
+    output:
+        config["out_dir"] + "/all_samples/ref/ref_genes.list"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cut -f2 {input} > {output}
+        """  
+
 rule create_pan_PAV:
     """
     Combine HQ and LQ PAV tables
@@ -945,6 +963,7 @@ rule create_pan_PAV:
     input:
         lq=expand(config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_PAV.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         hq=expand(config["out_dir"] + "/HQ_samples/{sample}/map_to_pan/{sample}_PAV.tsv", sample=config['hq_info'].keys()),
+        ref_genes=config["out_dir"] + "/all_samples/ref/ref_genes.list",
         names_sub=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff.gene_to_mRNA'
     output:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
@@ -958,5 +977,5 @@ rule create_pan_PAV:
         CONDA_ENV_DIR + '/pandas.yml'
     shell:
         """
-        python {params.create_PAV_matrix_script} {input.hq} {input.lq} {params.ref_name} {input.names_sub} {output}
+        python {params.create_PAV_matrix_script} {input.hq} {input.lq} {params.ref_name} {input.ref_genes} {input.names_sub} {output}
         """
