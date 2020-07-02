@@ -320,9 +320,10 @@ rule prep_liftover:
         logs_dir=LOGS_DIR,
     shell:
         """
+        rm -rf {params.gawn_dir}
         git clone https://github.com/enormandeau/gawn.git {params.gawn_dir}
-        ln {input.genome} {output.genome}
-        ln {input.liftover_transcripts} {output.liftover_transcripts}
+        ln -f {input.genome} {output.genome}
+        ln -f {input.liftover_transcripts} {output.liftover_transcripts}
         """
 
 rule GAWN_liftover:
