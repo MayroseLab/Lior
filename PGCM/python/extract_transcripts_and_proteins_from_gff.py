@@ -10,6 +10,7 @@ from Bio.Seq import Seq
 import gffutils
 import sys
 from time import time
+from os import remove
 
 in_gff = sys.argv[1]
 in_fasta = sys.argv[2]
