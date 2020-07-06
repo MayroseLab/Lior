@@ -35,6 +35,6 @@ with open(in_gff) as f, open(out_gff,'w') as fo:
     real_rec_name = chunks[rec_name][0]
     real_rec_start = chunks[rec_name][1]
     fields[0] = real_rec_name
-    fields[3] = str(int(fields[3]) + real_rec_start - 1)
-    fields[4] = str(int(fields[4]) + real_rec_start - 1)
+    fields[3] = str(int(fields[3]) + real_rec_start)
+    fields[4] = str(int(fields[4]) + real_rec_start)
     print('\t'.join(fields), file=fo)
