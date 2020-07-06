@@ -15,7 +15,11 @@ with open(in_fasta) as f, open(out_fasta, 'w') as fo:
   for line in f:
     line = line.strip()
     if line.startswith('>'):
-      name, rest = line[1:].split(' ', 1)
+      name_parts = line[1:].split(' ', 1)
+      name = name_parts[0]
+      rest = ''
+      if len(name_parts) == 2:
+        rest = name_parts[1]
       if name in names:
         names[name] += 1
         name = "%s_%s" %(name, names[name])
