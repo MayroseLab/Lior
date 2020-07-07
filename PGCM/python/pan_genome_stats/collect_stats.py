@@ -43,7 +43,12 @@ with open(in_tsv) as f:
       unmapped_perc = chr0_len/total_len*100
       s = pd.Series([unmapped_perc], name="% unmapped (Chr0)", index=[sample])    
       stats_df = stats_df.append(s)
-      columns.append(stats_df)
+    # QUAST report HTML link
+    html_quast_report = "file://" + quast_report.replace('.tsv','.html')  
+    s = pd.Series([html_quast_report], name="QUAST report", index=[sample])
+    stats_df = stats_df.append(s)
+
+    columns.append(stats_df)
 
 stats_df = pd.concat(columns, axis=1)
 stats_df = stats_df.transpose()
