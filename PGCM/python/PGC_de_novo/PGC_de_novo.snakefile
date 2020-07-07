@@ -1012,7 +1012,7 @@ rule break_orthogroups_MWOP:
     params:
         orthofinder_dir=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder",
         mwop_script=os.path.join(pipeline_dir,"break_OrthoFinder_clusters.py"),
-        ref_genome_name=config['ref_name'],
+        ref_genome_name=config['ref_name'] + "_REF",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
