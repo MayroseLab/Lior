@@ -322,8 +322,8 @@ rule prep_liftover:
         """
         rm -rf {params.gawn_dir}
         git clone https://github.com/enormandeau/gawn.git {params.gawn_dir}
-        ln -f {input.genome} {output.genome}
-        ln -f {input.liftover_transcripts} {output.liftover_transcripts}
+        cp {input.genome} {output.genome}
+        cp {input.liftover_transcripts} {output.liftover_transcripts}
         """
 
 rule GAWN_liftover:
@@ -1035,7 +1035,7 @@ rule create_PAV_matrix:
         mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
     params:
         create_pav_mat_script=os.path.join(pipeline_dir,"create_PAV_matrix.py"),
-        ref_name=config['ref_name'],
+        ref_name=config['ref_name'] + "_REF",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
