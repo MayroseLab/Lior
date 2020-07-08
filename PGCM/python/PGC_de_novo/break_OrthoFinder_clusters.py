@@ -316,7 +316,7 @@ class HomologyCluster(nx.Graph):
     # for monophyletic groups (from the same genome)
     if allow_gene_copies and self.gene_tree:
       all_genomes = set([gene.genome for gene in self.gene_tree])
-      if allow_gene_copies == "exclude_ref" and self.ref_genome_name:
+      if allow_gene_copies == "exclude_ref" and self.ref_genome_name and self.ref_genome_name in all_genomes:
         all_genomes.remove(self.ref_genome_name)
       gene_copies = []
       for genome in all_genomes:
