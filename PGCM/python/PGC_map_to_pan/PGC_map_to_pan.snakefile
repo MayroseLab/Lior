@@ -67,7 +67,8 @@ rule all:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
-        config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
+        config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff",
+        config["out_dir"] + "/all_samples/stats/report.html"
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -248,7 +249,8 @@ rule assembly_quast:
         r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
         queue=config['queue'],
@@ -978,4 +980,108 @@ rule create_pan_PAV:
     shell:
         """
         python {params.create_PAV_matrix_script} {input.hq} {input.lq} {params.ref_name} {input.ref_genes} {input.names_sub} {output}
+        """
+
+rule calculate_stepwise_stats:
+    """
+    Perform genome stepwise addition
+    analysis and generate stats
+    """
+    input:
+        config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
+    output:
+        config["out_dir"] + "/all_samples/stats/stepwise_stats.tsv"
+    params:
+        stepwise_script=utils_dir + '/pan_genome_stats/calc_stepwise_stats.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/pandas.yml'
+    shell:
+        """
+        python {params.stepwise_script} {input} 100 {output}
+        """
+
+rule prep_for_collect_stats:
+    """
+    Prepare the TSV required for
+    collecting assembly stats
+    """
+    input:
+        quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        busco=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+    output:
+        config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
+    params:
+        samples=' '.join(config['samples_info'].keys()),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') > {output}
+        """
+
+rule collect_assembly_stats:
+    """
+    Collect QUAST and BUSCO 
+    stats for LQ samples
+    """
+    input:
+        config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
+    output:
+        config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+    params:
+        collect_script=utils_dir + '/pan_genome_stats/collect_stats.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/jupyter.yml'
+    shell:
+        """
+        python {params.collect_script} {input} {output}
+        """
+
+rule create_report_notebook:
+    """
+    Create pan genome report Jupyter notebook
+    """
+    input:
+        pav_tsv=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
+        stepwise_tsv=config["out_dir"] + "/all_samples/stats/stepwise_stats.tsv",
+        assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
+        proteins_fasta=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
+    output:
+        config["out_dir"] + "/all_samples/stats/report.ipynb"
+    params:
+        ref_name=config['reference_name'],
+        nb_template=utils_dir + '/pan_genome_stats/report_template.ipynb',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    shell:
+        """
+        sed -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
+        """
+
+rule create_report_html:
+    """
+    Run notebook and create pan
+    genome report HTML
+    """
+    input:
+        config["out_dir"] + "/all_samples/stats/report.ipynb"
+    output:
+        config["out_dir"] + "/all_samples/stats/report.html"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/jupyter.yml'
+    shell:
+        """
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=300
         """

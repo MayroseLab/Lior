@@ -10,12 +10,12 @@ import sys
 import pandas as pd
 from random import sample
 
-in_pava_table = sys.argv[1]
+in_pav_table = sys.argv[1]
 n_iter = int(sys.argv[2])
 out_tsv = sys.argv[3]
 
 # read PAV TSV
-pav_df = pd.read_csv(in_pava_table, sep='\t', index_col = 0)
+pav_df = pd.read_csv(in_pav_table, sep='\t', index_col = 0)
 
 # generate random samples orders
 all_samples = list(pav_df.columns)
