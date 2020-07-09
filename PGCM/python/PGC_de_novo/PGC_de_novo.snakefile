@@ -508,6 +508,47 @@ rule maker_annotation:
         snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
+rule make_chunks_bed:
+    """
+    Create a bed file containing chunks borders.
+    Useful as part of annotation evidence collection.
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        awk '{{print $4"\t"$1"\t"$1+$3"\t"$2}}' {input} > {output}
+        """
+
+rule convert_chunks_to_chromosomes:
+    """
+    Convert gff coordinates and sequence names
+    to transform from chunks to chromosomes
+    """
+    input:
+        genes=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff",
+        all_=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff",
+        bed=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
+    output:
+        genes_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.gff",
+        all_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.chr.gff"
+    params:
+        convert_script=os.path.join(utils_dir,"transform_gff_coordinates.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        python {params.convert_script} {input.genes} {input.bed} {output.genes_out}
+        python {params.convert_script} {input.all_} {input.bed} {output.all_out}
+        """
+
 rule get_novel_genes:
     """
     Fetch only genes not overlapping with
@@ -515,10 +556,10 @@ rule get_novel_genes:
     """
     input:
         liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
-        annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff"
+        annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.gff"
     output:
         not_liftover_list=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/not_liftover.list",
-        not_liftover_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+        not_liftover_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.not_liftover.gff"
     params:
         filter_script=os.path.join(utils_dir,"filter_gff_by_id_list.py"),
         queue=config['queue'],
@@ -538,7 +579,7 @@ rule get_novel_proteins:
     """
     input:
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.not_liftover.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
     params:
@@ -559,9 +600,9 @@ rule combine_liftover_with_novel_gff:
     """
     input:
         liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
-        novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.not_liftover.gff"
+        novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.not_liftover.gff"
     output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.gff"
     params:
         queue=config['queue'],
         priority=config['priority'],
@@ -597,14 +638,13 @@ rule rename_genes:
     """
     input:
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.gff"
     output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.raw_names.fasta",
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.raw_names.gff",
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.gff",
+        gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
+        #fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/",
         create_fasta_map_script=os.path.join(utils_dir,"create_fasta_map.py"),
         queue=config['queue'],
         priority=config['priority'],
@@ -612,53 +652,11 @@ rule rename_genes:
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        maker_map_ids --prefix {wildcards.sample}_ --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
-        cp {input.gff} {params.out_dir}/maker.genes.raw_names.gff
-        map_gff_ids {params.out_dir}/gff.map {input.gff}
-        python {params.create_fasta_map_script} {input.gff} > {params.out_dir}/fasta.map
-        cp {input.fasta} {params.out_dir}/maker.proteins.raw_names.fasta
-        map_fasta_ids {params.out_dir}/fasta.map {input.fasta}
-        """
-
-rule make_chunks_bed:
-    """
-    Create a bed file containing chunks borders.
-    Useful as part of annotation evidence collection.
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        awk '{{print $4"\t"$1"\t"$1+$3"\t"$2}}' {input} > {output}
-        """
-
-rule convert_chunks_to_chromosomes:
-    """
-    Convert gff coordinates and sequence names
-    to transform from chunks to chromosomes
-    """
-    input:
-        genes=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff",
-        all_=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff",
-        bed=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed"
-    output:
-        genes_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.chr.gff",
-        all_out=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.chr.gff"
-    params:
-        convert_script=os.path.join(utils_dir,"transform_gff_coordinates.py"),
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        python {params.convert_script} {input.genes} {input.bed} {output.genes_out}
-        python {params.convert_script} {input.all_} {input.bed} {output.all_out}
+        maker_map_ids --prefix {wildcards.sample}_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
+        cp {input.gff} {output.gff}
+        map_gff_ids {output.gff_map} {output.gff}
+        cp {input.fasta} {output.fasta}
+        map_fasta_ids {output.gff_map} {output.fasta}
         """
 
 rule make_evidence_gffs:
@@ -747,10 +745,10 @@ rule filter_annotation:
     """
     input:
         gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.combine.gff"
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.gff"
     output:
-        lst=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.list",
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff"
+        lst=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.filter.list",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.filter.gff"
     params:
         max_aed=config['max_aed'],
         filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
@@ -759,7 +757,7 @@ rule filter_annotation:
         logs_dir=LOGS_DIR
     shell:
         """
-        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && (a[4] ~ /est2genome/ || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && ($2 == "indexed_genome" || d[2] <= {params.max_aed}) {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
         python {params.filter_gff_script} {input.gff} {output.lst} {output.gff}
         """
 
@@ -768,9 +766,9 @@ rule filter_proteins:
     Filter proteins fasta according to filtered gff  
     """
     input:
-        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.filter.gff",
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
-        fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.filter.gff",
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
+        #fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
     params:
