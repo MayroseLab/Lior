@@ -6,3 +6,4 @@ dependencies:
   - gffutils
   - biopython
   - intervaltree
+  - numpy

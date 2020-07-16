@@ -351,42 +351,15 @@ rule GAWN_liftover:
         ./gawn 02_infos/gawn_config.sh
         """
 
-rule filter_liftover_result:
-    """
-    Remove low quality predictions
-    from liftover results and ensure
-    one gene with one mRNA per
-    ref transcript.
-    """
-    input:
-        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome.gff3"
-    output:
-        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
-        flist=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.list"
-    params:
-        filter_gawn_script=os.path.join(pipeline_dir,"filter_GAWN_liftover_gff.py"),
-        filter_gff_script=os.path.join(utils_dir,"filter_gff_by_id_list.py"),
-        min_identity=config['min_identity'],
-        max_intron=config['max_intron'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    conda:
-        CONDA_ENV_DIR + '/gffutils.yml'
-    shell:
-        """
-        python {params.filter_gawn_script} {input.gff} {params.min_identity} {params.max_intron} > {output.flist}
-        python {params.filter_gff_script} {input.gff} {output.flist} {output.gff}
-        """
-
-rule create_liftover_fasta:
+rule create_liftover_transcripts_fasta:
     """
     Use liftover gff and genome fasta
-    to create transcripts, cDNA and
-    protein fasta files
+    to create transcripts fasta file.
+    (cDNA and protein fasta files are also
+    created but are not used)
     """
     input:
-        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome.gff3",
         genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta"
     output:
         trans=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta",
@@ -402,6 +375,118 @@ rule create_liftover_fasta:
     shell:
         """
         python {params.extract_script} {input.gff} {input.genome} {output.trans} {output.cdna} {output.prot}
+        """
+
+rule predict_liftover_proteins:
+    """
+    Use TransDecoder to predict proteins
+    from liftover transcripts
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta"
+    output:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.gff3",
+        pep=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep"
+    params:
+        wdir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/TransDecoder.yml'
+    shell:
+        """
+        cd {params.wdir}
+        TransDecoder.LongOrfs -t {input} -m 1
+        TransDecoder.Predict -t {input} --single_best_only
+        """
+
+rule simplify_transdecoder_protein_names:
+    """
+    Remove unwanted parts from fasta headers
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed 's/>\(.*\)\.p[0-9]* GENE.*/>\\1/' {input} > {output}
+        """
+
+rule blast_liftover_proteins:
+    """
+    Run Blastp of liftover proteins
+    against the reference proteins
+    """
+    input:
+        liftover=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins.fasta",
+        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta',
+        ref_db=config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.psq'
+    output:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep_vs_ref.blast6"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/GAWN.yml'
+    shell:
+        """
+        blastp -query {input.liftover} -db {input.ref} -out {output} -max_target_seqs 1 -outfmt 6 -num_threads {params.ppn}
+        """
+
+rule improve_liftover_result:
+    """
+    Remove low quality predictions
+    from liftover results and ensure
+    one gene with one mRNA per
+    ref transcript. Also rewrite GFF
+    CDS features
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome.gff3",
+        transdecoder_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.gff3",
+        blastp_res=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep_vs_ref.blast6"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3"
+    params:
+        improve_script=os.path.join(pipeline_dir,"improve_GAWN_liftover.py"),
+        min_identity=config['min_identity'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.improve_script} {input.gff} {input.blastp_res} {input.transdecoder_gff} {params.min_identity} {output}
+        """
+
+rule get_liftover_proteins:
+    """
+    Fetch the final set of filtered liftover proteins
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3",
+        fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins_improve.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
 rule prep_chunks:
@@ -555,7 +640,7 @@ rule get_novel_genes:
     liftover genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3",
         annotation_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.gff"
     output:
         not_liftover_list=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/not_liftover.list",
@@ -599,7 +684,7 @@ rule combine_liftover_with_novel_gff:
     Combine liftover genes with novel genes
     """
     input:
-        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_filter.gff3",
+        liftover_gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3",
         novel_gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.not_liftover.gff"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.gff"
@@ -618,7 +703,7 @@ rule combine_liftover_with_novel_proteins:
     Combine liftover proteins with novel proteins
     """
     input:
-        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_proteins.fasta",
+        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins_improve.fasta",
         novel_fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.not_liftover.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta"
@@ -645,7 +730,6 @@ rule rename_genes:
         gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
         #fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     params:
-        create_fasta_map_script=os.path.join(utils_dir,"create_fasta_map.py"),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -835,7 +919,7 @@ rule prep_for_orthofinder:
     matching genome names.
     """
     input:
-        ev=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done",
+        #ev=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done",
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
     output:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta"
@@ -897,6 +981,27 @@ rule get_ref_proteins:
     shell:
         """
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        """
+
+rule make_ref_blast_db:
+    """
+    Create blast DB of ref proteins
+    """
+    input:
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta'
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.pin',
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.phr',
+        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.psq'
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/GAWN.yml'
+    shell:
+        """
+        makeblastdb -in {input} -input_type fasta -dbtype prot
         """
 
 rule remove_hq_sample_alt_splicing:
