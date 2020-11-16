@@ -1,9 +1,0 @@
-name: gffutils
-channels:
-  - bioconda
-  - conda-forge
-dependencies:
-  - gffutils
-  - biopython
-  - intervaltree
-  - numpy

@@ -9,7 +9,8 @@ def init():
     #load_info_file
     config['pan_genomes'] = SampleInfoReader.sample_table_reader(filename=config['pan_genomes_info'],
                 delimiter='\t', key_name='pan_genome_name', col_names=['proteins_fasta','pav_tsv'])
-    assert len(config['pan_genomes']) == 2, "Exactly two pan genomes should be provided"
+    assert len(config['pan_genomes']) == 3, "Exactly three pan genomes should be provided"
+    assert "TRUE_PG" in config['pan_genomes'], "True pan-genome must be included and named TRUE_PG"
 
 init()
 LOGS_DIR = config['out_dir'] + "/logs"
@@ -105,42 +106,23 @@ rule blast_non_ref:
 pg_names = sorted(list(config['pan_genomes'].keys()))
 pg1 = pg_names[0]
 pg2 = pg_names[1]
-
-#rule find_RBBH:
-#    """
-#    Find reciprocal best blast hits between
-#    non-ref proteins of the two pan genomes
-#    """
-#    input:
-#        fw=os.path.join(config["out_dir"], pg1 + "_nonref_vs_" + pg2 + "_nonref.blast6"),
-#        rev=os.path.join(config["out_dir"], pg2 + "_nonref_vs_" + pg1 + "_nonref.blast6")
-#    output:
-#        os.path.join(config["out_dir"], 'RBBH.tsv')
-#    params:
-#        find_RBBH_script=os.path.join(pipeline_dir, 'find_RBBH.py'), 
-#        queue=config['queue'],
-#        priority=config['priority'],
-#        logs_dir=LOGS_DIR
-#    shell:
-#        """
-#        python {params.find_RBBH_script} {input.fw} {input.rev} {output}
-#        """
+true_pg = 'TRUE_PG'
 
 rule find_matches:
     """
     Find the maximum weight matching between pan genome proteins
     """
     input:
-        pg1_fasta=os.path.join(config["out_dir"], pg1 + "_nonref.fasta"),
-        pg2_fasta=os.path.join(config["out_dir"], pg2 + "_nonref.fasta"),
-        fw=os.path.join(config["out_dir"], pg1 + "_nonref_vs_" + pg2 + "_nonref.blast6"),
-        rev=os.path.join(config["out_dir"], pg2 + "_nonref_vs_" + pg1 + "_nonref.blast6"),
+        pg1_fasta=os.path.join(config["out_dir"], "{PG1}_nonref.fasta"),
+        pg2_fasta=os.path.join(config["out_dir"], "{PG2}_nonref.fasta"),
+        fw=os.path.join(config["out_dir"], "{PG1}_nonref_vs_{PG2}_nonref.blast6"),
+        rev=os.path.join(config["out_dir"], "{PG2}_nonref_vs_{PG1}_nonref.blast6"),
     output:
-        os.path.join(config["out_dir"], 'max_weight_matches.tsv')
+        os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_max_weight_matches.tsv')
     params:
         find_matches_script=os.path.join(pipeline_dir, 'match_non_ref.py'),
-        pg1_name=pg1,
-        pg2_name=pg2,
+        pg1_name=lambda w: w.PG1,
+        pg2_name=lambda w: w.PG2,
         min_bitscore=config['min_bitscore'],
         queue=config['queue'],
         priority=config['priority'],
@@ -159,7 +141,10 @@ rule create_report_nb:
     input:
         pg1_pav=config['pan_genomes'][pg1]['pav_tsv'],
         pg2_pav=config['pan_genomes'][pg2]['pav_tsv'],
-        matches=os.path.join(config["out_dir"], 'max_weight_matches.tsv')
+        true_pg_pav=config['pan_genomes']['TRUE_PG']['pav_tsv'],
+        pg1_vs_pg2_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,pg2,true_pg)),
+        pg1_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,true_pg,true_pg)),
+        pg2_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg2,true_pg,true_pg))
     output:
         os.path.join(config["out_dir"], 'report.ipynb')
     params:
@@ -169,7 +154,7 @@ rule create_report_nb:
         logs_dir=LOGS_DIR
     shell:
         """
-        sed -e 's@<PG1_PAV>@{input.pg1_pav}@' -e 's@<PG2_PAV>@{input.pg2_pav}@' -e 's@<NON_REF_MATCHES>@{input.matches}@' -e 's@<PG1_NAME>@%s@' -e 's@<PG2_NAME>@%s@' {params.nb_template} > {output} 
+        sed -e 's@<PG1_PAV>@{input.pg1_pav}@' -e 's@<PG2_PAV>@{input.pg2_pav}@' -e 's@<TRUE_PAV>@{input.true_pg_pav}@' -e 's@<PG1_VS_PG2_NON_REF_MATCHES>@{input.pg1_vs_pg2_matches}@' -e 's@<PG1_VS_TRUE_NON_REF_MATCHES>@{input.pg1_vs_true_matches}@' -e 's@<PG2_VS_TRUE_NON_REF_MATCHES>@{input.pg2_vs_true_matches}@' -e 's@<PG1_NAME>@%s@' -e 's@<PG2_NAME>@%s@' {params.nb_template} > {output} 
         """ %(pg1, pg2)
 
 rule create_report_html:
@@ -188,5 +173,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=300
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1 --to html
         """

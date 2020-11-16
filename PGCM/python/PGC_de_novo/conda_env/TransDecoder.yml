@@ -1,5 +1,0 @@
-name: TransDecoder
-channels:
-  - bioconda
-dependencies:
-  - transdecoder

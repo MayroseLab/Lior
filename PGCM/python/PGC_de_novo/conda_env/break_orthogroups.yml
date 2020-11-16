@@ -1,8 +1,0 @@
-name: break_orthogroups
-channels:
-  - conda-forge
-dependencies:
-  - python=3.5
-  - networkx
-  - pandas
-  - ete3
