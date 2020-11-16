@@ -1,5 +1,0 @@
-name: cd-hit
-channels:
-  - bioconda
-dependencies:
-  - cd-hit
