@@ -4,15 +4,13 @@ utils_dir = os.path.dirname(pipeline_dir)
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
+import pandas as pd
 
-def init():
-    #load_info_file
-    config['pan_genomes'] = SampleInfoReader.sample_table_reader(filename=config['pan_genomes_info'],
-                delimiter='\t', key_name='pan_genome_name', col_names=['proteins_fasta','pav_tsv'])
-    assert len(config['pan_genomes']) == 3, "Exactly three pan genomes should be provided"
-    assert "TRUE_PG" in config['pan_genomes'], "True pan-genome must be included and named TRUE_PG"
+#load_info_file
+pan_genomes = pd.read_table(config['pan_genomes_info']).set_index("pan_genome_name", drop=False)
+assert pan_genomes.shape[0] == 3, "Exactly three pan genomes should be provided"
+assert "TRUE_PG" in pan_genomes.index, "True pan-genome must be included and named TRUE_PG"
 
-init()
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = pipeline_dir + "/conda_env"
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/annotation_pipeline'
@@ -38,17 +36,22 @@ localrules: all
 
 rule all:
     input:
-        os.path.join(config["out_dir"], 'report.html')
+        os.path.join(config["out_dir"], 'report.html'),
+        os.path.join(config["out_dir"], 'discrepancies.tsv')
 
-def get_pan_genome(wildcards):
-    return config['pan_genomes'][wildcards.PG]['proteins_fasta']
+def get(wildcards, what):
+    sample_dir = pan_genomes.loc[wildcards.PG, 'path']
+    if what == 'prot':
+        return sample_dir + '/all_samples/pan_genome/pan_proteome.fasta'
+    elif what == 'pav':
+        return sample_dir + '/all_samples/pan_genome/pan_PAV.tsv'
 
 rule extract_non_ref_PG:
     """
     Extract non-ref proteins into a new fasta
     """
     input:
-        get_pan_genome
+        lambda wc: get(wc, what='prot')
     output:
         os.path.join(config["out_dir"], "{PG}_nonref.fasta")
     params:
@@ -103,11 +106,6 @@ rule blast_non_ref:
         blastp -query {input.pg1_fasta} -db {input.pg2_fasta} -out {output} -max_target_seqs 5 -outfmt 6
         """
 
-pg_names = sorted(list(config['pan_genomes'].keys()))
-pg1 = pg_names[0]
-pg2 = pg_names[1]
-true_pg = 'TRUE_PG'
-
 rule find_matches:
     """
     Find the maximum weight matching between pan genome proteins
@@ -134,14 +132,18 @@ rule find_matches:
         python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --min_weight {params.min_bitscore} --set1_name {params.pg1_name} --set2_name {params.pg2_name}
         """
 
+pg1 = pan_genomes.index[0]
+pg2 = pan_genomes.index[1]
+true_pg = pan_genomes.index[2]
+
 rule create_report_nb:
     """
     Create jupyter notebook of comparison report
     """
     input:
-        pg1_pav=config['pan_genomes'][pg1]['pav_tsv'],
-        pg2_pav=config['pan_genomes'][pg2]['pav_tsv'],
-        true_pg_pav=config['pan_genomes']['TRUE_PG']['pav_tsv'],
+        pg1_pav=pan_genomes.loc[pg1]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
+        pg2_pav=pan_genomes.loc[pg2]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
+        true_pg_pav=pan_genomes.loc[true_pg]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
         pg1_vs_pg2_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,pg2,true_pg)),
         pg1_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,true_pg,true_pg)),
         pg2_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg2,true_pg,true_pg))
@@ -164,7 +166,8 @@ rule create_report_html:
     input:
         os.path.join(config["out_dir"], 'report.ipynb')
     output:
-        os.path.join(config["out_dir"], 'report.html')
+        report=os.path.join(config["out_dir"], 'report.html'),
+        discrep=os.path.join(config["out_dir"], 'discrepancies.tsv')
     params:
         queue=config['queue'],
         priority=config['priority'],
@@ -173,5 +176,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1 --to html
+        jupyter nbconvert {input} --output {output.report} --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1 --to html
         """
