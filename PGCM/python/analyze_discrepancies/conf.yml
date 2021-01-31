@@ -1,0 +1,13 @@
+name: analyze_discrepancies
+dn_dir:
+mtp_dir:
+discrepancies_tsv:
+out_dir:
+
+# variant filtration
+min_qualuty: 20
+min_depth: 5
+
+queue:
+priority:
+ppn:
