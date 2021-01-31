@@ -1,0 +1,5 @@
+name: snpeff
+channels:
+  - bioconda
+dependencies:
+  - snpeff=5.0
