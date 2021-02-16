@@ -4,3 +4,5 @@ channels:
 dependencies:
   - networkx
   - scipy
+  - pandas
+  - numpy
