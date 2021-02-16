@@ -103,7 +103,7 @@ rule blast_non_ref:
         CONDA_ENV_DIR + '/blast.yml'
     shell:
         """
-        blastp -query {input.pg1_fasta} -db {input.pg2_fasta} -out {output} -max_target_seqs 5 -outfmt 6
+        blastp -query {input.pg1_fasta} -db {input.pg2_fasta} -out {output} -max_target_seqs 5 -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"
         """
 
 rule find_matches:
@@ -129,7 +129,7 @@ rule find_matches:
         CONDA_ENV_DIR + '/match_non_ref.yml'
     shell:
         """
-        python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --min_weight {params.min_bitscore} --set1_name {params.pg1_name} --set2_name {params.pg2_name}
+        python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --min_weight {params.min_bitscore} --set1_name {params.pg1_name} --set2_name {params.pg2_name} --normalize_weight
         """
 
 pg1 = pan_genomes.index[0]
