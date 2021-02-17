@@ -61,6 +61,11 @@ def normalize_score(blast6_df, weight_param, bin_size=500):
     a,b = np.polyfit(bin_df_top['log_length_product'], bin_df_top['log_'+weight_param], 1)
     # normalize scores according to model
     bin_df['norm_'+weight_param] = bin_df[weight_param]/(10**b * bin_df['length_product'] ** a)
+    # also normalize by q/s coverage
+    bin_df['qcov'] = (bin_df['qend']-bin_df['qstart'])/bin_df['qlen']
+    bin_df['scov'] = (bin_df['send']-bin_df['sstart'])/bin_df['slen']
+    bin_df['norm_'+weight_param] = bin_df['norm_'+weight_param] * bin_df['qcov'] * bin_df['scov']
+    
     bin_dfs.append(bin_df)
 
   return pd.concat(bin_dfs)
