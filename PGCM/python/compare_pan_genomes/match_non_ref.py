@@ -95,7 +95,7 @@ if __name__ == "__main__":
   parser.add_argument('out_tsv', help="Path to output file")
   parser.add_argument('--weight_param', default='bitscore', help="Blast column to use as edge weight" )
   parser.add_argument('--normalize_weight', default='False', action='store_true', help="Apply a normalization procedure to the weights to eliminate length bias" )
-  parser.add_argument('--min_weight', type=float, default=0, help="Minnimal weight value allowed in a match")
+  parser.add_argument('--filter', default=None, help="A boolean expression to use for filtering blast hits. The expression will be evaluated by pd.df.query(). E.g: pident > 90 & qcov > 0.9 & scov > 0.9. Default: no filter")
   parser.add_argument('--set1_name', default="set1", help="Name of set1")
   parser.add_argument('--set2_name', default="set2", help="Name of set2")
   args = parser.parse_args()
@@ -120,6 +120,12 @@ if __name__ == "__main__":
     print("Normalizing weights...")
     set1_vs_set2_weights = normalize_score(set1_vs_set2_weights, args.weight_param)
     set2_vs_set1_weights = normalize_score(set2_vs_set1_weights, args.weight_param)
+
+  # filter blast hits
+  if args.filter:
+    print("Filtering BLAST hits...")
+    set1_vs_set2_weights.query(args.filter, inplace=True)
+    set2_vs_set1_weights.query(args.filter, inplace=True)
   
   # go over all BG edges and assign weights
   print("Assigning edge weights...")
@@ -149,7 +155,7 @@ if __name__ == "__main__":
         # each match appears in both directions in the output dict
         continue
       match_weight = -1 * bg[source][target]['weight']
-      if match_weight >= args.min_weight:
+      if match_weight > 0:
         q_name = set1_proteins[source]
         s_name = set2_proteins[target]
         print("%s\t%s\t%s" %(q_name, s_name, match_weight), file=fo)

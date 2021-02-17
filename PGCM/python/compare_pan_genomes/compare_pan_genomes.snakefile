@@ -121,7 +121,6 @@ rule find_matches:
         find_matches_script=os.path.join(pipeline_dir, 'match_non_ref.py'),
         pg1_name=lambda w: w.PG1,
         pg2_name=lambda w: w.PG2,
-        min_bitscore=config['min_bitscore'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -129,7 +128,7 @@ rule find_matches:
         CONDA_ENV_DIR + '/match_non_ref.yml'
     shell:
         """
-        python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --min_weight {params.min_bitscore} --set1_name {params.pg1_name} --set2_name {params.pg2_name} --normalize_weight
+        python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --set1_name {params.pg1_name} --set2_name {params.pg2_name} --normalize_weight --filter "pident>90 & qcov>0.9 & scov>0.9"
         """
 
 pg1 = pan_genomes.index[0]
