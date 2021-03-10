@@ -1,0 +1,7 @@
+name: assign_cause
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pandas
+  - pysam
