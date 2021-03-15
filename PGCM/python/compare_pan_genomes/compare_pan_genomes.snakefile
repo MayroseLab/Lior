@@ -34,17 +34,33 @@ onerror:
 
 localrules: all
 
+pg1 = pan_genomes.index[0]
+pg2 = pan_genomes.index[1]
+true_pg = pan_genomes.index[2]
+
 rule all:
     input:
         os.path.join(config["out_dir"], 'report.html'),
-        os.path.join(config["out_dir"], 'discrepancies.tsv')
+        os.path.join(config["out_dir"], 'discrepancies.tsv'),
+        os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched_mapped.tsv'.format(pg1,pg2)),
+        os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched_mapped.tsv'.format(pg2,pg1))
 
-def get(wildcards, what):
-    sample_dir = pan_genomes.loc[wildcards.PG, 'path']
+def get(wildcards, what, which=None):
+    if not which or which == 'PG':
+        pg = wildcards.PG
+    elif which == 'PG1':
+        pg = wildcards.PG1
+    elif which == 'PG2':
+        pg = wildcards.PG2
+    sample_dir = pan_genomes.loc[pg, 'path']
     if what == 'prot':
         return sample_dir + '/all_samples/pan_genome/pan_proteome.fasta'
+    elif what == 'trans':
+        return sample_dir + '/all_samples/pan_genome/pan_transcripts.fasta'
     elif what == 'pav':
         return sample_dir + '/all_samples/pan_genome/pan_PAV.tsv'
+    elif what == 'per_sample':
+        return sample_dir + '/per_sample'
 
 rule extract_non_ref_PG:
     """
@@ -131,9 +147,77 @@ rule find_matches:
         python {params.find_matches_script} {input.pg1_fasta} {input.pg2_fasta} {input.fw} {input.rev} {output} --set1_name {params.pg1_name} --set2_name {params.pg2_name} --normalize_weight --filter "pident>90 & qcov>0.9 & scov>0.9"
         """
 
-pg1 = pan_genomes.index[0]
-pg2 = pan_genomes.index[1]
-true_pg = pan_genomes.index[2]
+rule make_nonref_lists:
+    """
+    Create lists of matched/unmatched
+    nonref genes
+    """
+    input:
+        matches_tsv=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,pg2)),
+        pg1_fasta=os.path.join(config["out_dir"], "{}_nonref.fasta".format(pg1)),
+        pg2_fasta=os.path.join(config["out_dir"], "{}_nonref.fasta".format(pg2)),
+    output:
+        pg1_matched=os.path.join(config["out_dir"], '{}_vs_{}_nonref_matched'.format(pg1,pg2)),
+        pg1_unmatched=os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched'.format(pg1,pg2)),
+        pg2_matched=os.path.join(config["out_dir"], '{}_vs_{}_nonref_matched'.format(pg2,pg1)),
+        pg2_unmatched=os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched'.format(pg2,pg1)),
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        grep -w -E $(cut -f1 {input.matches_tsv} | tr '\\n' '|' | sed '$ s/.$//') {input.pg1_fasta} | tr -d '>' > {output.pg1_matched}
+        grep '>' {input.pg1_fasta} | grep -v -w -E $(cut -f1 {input.matches_tsv} | tr '\\n' '|' | sed '$ s/.$//') | tr -d '>' > {output.pg1_unmatched}
+        grep -w -E $(cut -f2 {input.matches_tsv} | tr '\\n' '|' | sed '$ s/.$//') {input.pg2_fasta} | tr -d '>' > {output.pg2_matched}
+        grep '>' {input.pg2_fasta} | grep -v -w -E $(cut -f2 {input.matches_tsv} | tr '\\n' '|' | sed '$ s/.$//') | tr -d '>' > {output.pg2_unmatched}
+        """
+
+rule get_unmatched_transcripts:
+    """
+    Fetch transcript sequences of nonref
+    unmatched genes
+    """
+    input:
+        transcripts=lambda wc: get(wc, what='trans',which='PG1'),
+        unmatched_list=os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched')
+    output:
+        os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_trans.fasta')
+    params:
+        filter_fasta_script=os.path.join(pipeline_dir, "filter_fasta_by_id_list.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/biopython.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.transcripts} {input.unmatched_list} > {output}
+        """
+
+rule find_mapped_unmatched_trans:
+    """
+    Determine which of the unmatched transcripts
+    were found (mapped) in at least one genome
+    of the other PG
+    """
+    input:
+        trans=os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_trans.fasta')
+    output:
+        os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_mapped.tsv')
+    params:
+        pg2_per_sample_dir=lambda wc: get(wc, what='per_sample',which='PG2'),
+        find_mapped_trans_script=os.path.join(pipeline_dir, "find_mapped_trans.py"),
+        out_dir=os.path.join(config["out_dir"], '{PG1}_nonref_unmatched_trans_vs_{PG2}_genomes'),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/minimap2.yml'
+    shell:
+        """
+        python {params.find_mapped_trans_script} {input} {params.pg2_per_sample_dir} {params.out_dir} {output}
+        """
 
 rule create_report_nb:
     """
