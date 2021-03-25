@@ -42,8 +42,8 @@ rule all:
     input:
         os.path.join(config["out_dir"], 'report.html'),
         os.path.join(config["out_dir"], 'discrepancies.tsv'),
-        os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched_mapped.tsv'.format(pg1,pg2)),
-        os.path.join(config["out_dir"], '{}_vs_{}_nonref_unmatched_mapped.tsv'.format(pg2,pg1))
+        os.path.join(config["out_dir"], '{}_trans_vs_{}_assemblies/transcript_mapping.tsv'.format(pg1,pg2)),
+        os.path.join(config["out_dir"], '{}_trans_vs_{}_assemblies/transcript_mapping.tsv'.format(pg2,pg1))
 
 def get(wildcards, what, which=None):
     if not which or which == 'PG':
@@ -173,50 +173,54 @@ rule make_nonref_lists:
         grep '>' {input.pg2_fasta} | grep -v -w -E $(cut -f2 {input.matches_tsv} | tr '\\n' '|' | sed '$ s/.$//') | tr -d '>' > {output.pg2_unmatched}
         """
 
-rule get_unmatched_transcripts:
+rule map_transcripts:
     """
-    Fetch transcript sequences of nonref
-    unmatched genes
-    """
-    input:
-        transcripts=lambda wc: get(wc, what='trans',which='PG1'),
-        unmatched_list=os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched')
-    output:
-        os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_trans.fasta')
-    params:
-        filter_fasta_script=os.path.join(pipeline_dir, "filter_fasta_by_id_list.py"),
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/biopython.yml'
-    shell:
-        """
-        python {params.filter_fasta_script} {input.transcripts} {input.unmatched_list} > {output}
-        """
-
-rule find_mapped_unmatched_trans:
-    """
-    Determine which of the unmatched transcripts
-    were found (mapped) in at least one genome
-    of the other PG
+    Map transcripts of one PG to
+    all assemblies of the other PG
     """
     input:
-        trans=os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_trans.fasta')
+        lambda wc: get(wc, what='trans', which='PG1')
     output:
-        os.path.join(config["out_dir"], '{PG1}_vs_{PG2}_nonref_unmatched_mapped.tsv')
+        os.path.join(config["out_dir"], '{PG1}_trans_vs_{PG2}_assemblies/done')
     params:
         pg2_per_sample_dir=lambda wc: get(wc, what='per_sample',which='PG2'),
-        find_mapped_trans_script=os.path.join(pipeline_dir, "find_mapped_trans.py"),
-        out_dir=os.path.join(config["out_dir"], '{PG1}_nonref_unmatched_trans_vs_{PG2}_genomes'),
+        out_dir=os.path.join(config["out_dir"], '{PG1}_trans_vs_{PG2}_assemblies'),
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
     conda:
         CONDA_ENV_DIR + '/minimap2.yml'
     shell:
         """
-        python {params.find_mapped_trans_script} {input} {params.pg2_per_sample_dir} {params.out_dir} {output}
+        for g in `ls -1 {params.pg2_per_sample_dir}/*/RG_assembly_*/ragtag_output/ragtag.scaffolds.fasta`
+        do
+            sampleName=`echo $g | sed 's@.*/per_sample/\([^/]*\)/.*@\\1@'`
+            minimap2 -x splice:hq -uf $g {input} -t {params.ppn} --paf-no-hit > {params.out_dir}/$sampleName.paf
+        done
+        touch {output}
+        """
+
+rule find_transcript_mapping:
+    """
+    Parse paf files to find
+    mappings of each transcript
+    """
+    input:
+        os.path.join(config["out_dir"], '{PG1}_trans_vs_{PG2}_assemblies/done')
+    output:
+        os.path.join(config["out_dir"], '{PG1}_trans_vs_{PG2}_assemblies/transcript_mapping.tsv')
+    params:
+        paf_dir=os.path.join(config["out_dir"], '{PG1}_trans_vs_{PG2}_assemblies'),
+        find_trans_mapping_script=os.path.join(pipeline_dir, "find_trans_mapping.py"),
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/match_non_ref.yml'
+    shell:
+        """
+        python {params.find_trans_mapping_script} {params.paf_dir} {output}
         """
 
 rule create_report_nb:
