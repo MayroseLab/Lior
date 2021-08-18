@@ -8,8 +8,7 @@ import pandas as pd
 
 #load_info_file
 pan_genomes = pd.read_table(config['pan_genomes_info']).set_index("pan_genome_name", drop=False)
-assert pan_genomes.shape[0] == 3, "Exactly three pan genomes should be provided"
-assert "TRUE_PG" in pan_genomes.index, "True pan-genome must be included and named TRUE_PG"
+assert pan_genomes.shape[0] == 2, "Exactly three pan genomes should be provided"
 
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = pipeline_dir + "/conda_env"
@@ -36,7 +35,6 @@ localrules: all
 
 pg1 = pan_genomes.index[0]
 pg2 = pan_genomes.index[1]
-true_pg = pan_genomes.index[2]
 
 rule all:
     input:
@@ -230,10 +228,7 @@ rule create_report_nb:
     input:
         pg1_pav=pan_genomes.loc[pg1]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
         pg2_pav=pan_genomes.loc[pg2]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
-        true_pg_pav=pan_genomes.loc[true_pg]['path'] + '/all_samples/pan_genome/pan_PAV.tsv',
-        pg1_vs_pg2_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,pg2,true_pg)),
-        pg1_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,true_pg,true_pg)),
-        pg2_vs_true_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg2,true_pg,true_pg))
+        pg1_vs_pg2_matches=os.path.join(config["out_dir"], '{}_vs_{}_max_weight_matches.tsv'.format(pg1,pg2)),
     output:
         os.path.join(config["out_dir"], 'report.ipynb')
     params:
@@ -243,7 +238,7 @@ rule create_report_nb:
         logs_dir=LOGS_DIR
     shell:
         """
-        sed -e 's@<PG1_PAV>@{input.pg1_pav}@' -e 's@<PG2_PAV>@{input.pg2_pav}@' -e 's@<TRUE_PAV>@{input.true_pg_pav}@' -e 's@<PG1_VS_PG2_NON_REF_MATCHES>@{input.pg1_vs_pg2_matches}@' -e 's@<PG1_VS_TRUE_NON_REF_MATCHES>@{input.pg1_vs_true_matches}@' -e 's@<PG2_VS_TRUE_NON_REF_MATCHES>@{input.pg2_vs_true_matches}@' -e 's@<PG1_NAME>@%s@' -e 's@<PG2_NAME>@%s@' {params.nb_template} > {output} 
+        sed -e 's@<PG1_PAV>@{input.pg1_pav}@' -e 's@<PG2_PAV>@{input.pg2_pav}@' -e 's@<PG1_VS_PG2_NON_REF_MATCHES>@{input.pg1_vs_pg2_matches}@' -e 's@<PG1_NAME>@%s@' -e 's@<PG2_NAME>@%s@' {params.nb_template} > {output} 
         """ %(pg1, pg2)
 
 rule create_report_html:
