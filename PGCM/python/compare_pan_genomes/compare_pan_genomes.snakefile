@@ -8,7 +8,7 @@ import pandas as pd
 
 #load_info_file
 pan_genomes = pd.read_table(config['pan_genomes_info']).set_index("pan_genome_name", drop=False)
-assert pan_genomes.shape[0] == 2, "Exactly three pan genomes should be provided"
+assert pan_genomes.shape[0] == 2, "Exactly two pan genomes should be provided"
 
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = pipeline_dir + "/conda_env"
