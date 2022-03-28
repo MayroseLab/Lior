@@ -1,0 +1,6 @@
+name: KMC
+channels:
+  - bioconda
+dependencies:
+  - kmc
+
