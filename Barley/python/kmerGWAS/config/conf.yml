@@ -1,0 +1,21 @@
+### input/output ###
+samples_tsv: 
+phenotypes_tsv:
+out_dir: 
+voichek_code_dir:
+
+### k-mer counting ###
+k: 31
+min_count: 2    # min frequency of k-mers to keep (per accession)
+
+### k-mer GWAS ###
+min_accessions: 5       # min k-mer occupancy 9accessions in which it is present) to go into GWAS
+min_perc_acc: 0.2       # min fraction of accessions in which the k-mer has to appear in both canonized and noncanonized for to go into GWAS
+min_maf_for_kinship: 0.05       # min MAF for a k-mer to be used for kinship matrix calculation
+kmers_to_analyze: 10000 # number of k-mers to run the full model on and get a p-value
+
+### env ###
+cpu: 30
+mem_gb: 25
+queue: itaym
+priority: 0
