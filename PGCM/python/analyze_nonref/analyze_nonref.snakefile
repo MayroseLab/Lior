@@ -143,6 +143,92 @@ rule find_domains:
         interproscan.sh -i {input} -t p -dp -pa -appl Pfam,ProDom,SUPERFAMILY,PIRSF --goterms --iprlookup -o {output} -f TSV -cpu {params.ppn}
         """
 
+rule bwa_index:
+    input:
+        config['pan_transcriptome']
+    output:
+        config['pan_transcriptome'] + '.bwt'
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa index {input}
+        """
+
+rule map_RNA_seq:
+    input:
+        r1 = config['RNA-seq_R1'],
+        r2 = config['RNA-seq_R2'],
+        trans = config['pan_transcriptome'],
+        ind = config['pan_transcriptome'] + '.bwt'
+    output:
+        os.path.join(config['out_dir'], 'RNA-seq.sam')
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn=config['ppn'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa mem {input.trans} {input.r1} {input.r2} -t {params.ppn} -o {output}
+        """
+
+rule sam_to_filtered_bam:
+    input:
+        os.path.join(config['out_dir'], 'RNA-seq.sam')
+    output:
+        os.path.join(config['out_dir'], 'RNA-seq.Q20.sort.bam')
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn=config['ppn'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools view -bh -F 4 -q 20 {input} -@ {params.ppn} | samtools sort - -@ {params.ppn} -o {output}
+        """
+
+rule count_reads:
+    input:
+        os.path.join(config['out_dir'], 'RNA-seq.Q20.sort.bam')
+    output:
+        os.path.join(config['out_dir'], 'RNA-seq.read_counts.tsv')
+    params:
+        count_script=os.path.join(pipeline_dir, 'uniq_count.py'),
+        queue=config['queue'],
+        ppn=2,
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools view {input} | cut -f3 | python {params.count_script} > {output}
+        """
+
+rule transcript_lengths:
+    input:
+        config['pan_transcriptome']
+    output:
+        os.path.join(config['out_dir'], 'pan_transcriptome.fa.fai')
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools faidx {input} --fai-idx {output}
+        """
 
 rule analyze_nonref:
     """
@@ -152,7 +238,9 @@ rule analyze_nonref:
         nonref_list = os.path.join(config['out_dir'], 'nonref_proteins.list'),
         nonref_vs_ref = os.path.join(config['out_dir'], 'nonref_vs_ref.psl.top'),
         nonref_vs_db = os.path.join(config['out_dir'], 'nonref_vs_DB.psl.top'),
-        domains = os.path.join(config['out_dir'], 'nonref_domains.tsv')
+        domains = os.path.join(config['out_dir'], 'nonref_domains.tsv'),
+        read_counts = os.path.join(config['out_dir'], 'RNA-seq.read_counts.tsv'),
+        trans_len = os.path.join(config['out_dir'], 'pan_transcriptome.fa.fai')
     output:
         report = os.path.join(config['out_dir'],'report.txt'),
         analysis_tsv = os.path.join(config['out_dir'],'nonref_analysis.tsv')
@@ -162,6 +250,7 @@ rule analyze_nonref:
         truncated_ref_min_identity = config['truncated_ref_min_identity'],
         truncated_ref_max_subject_cov = config['truncated_ref_max_subject_cov'],
         homology_min_identity = config['homology_min_identity'],
+        min_rpkm = config['min_RPKM'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -184,8 +273,16 @@ rule analyze_nonref:
         has_domain = ips_domains_df.query('Score < 0.0001')['Protein_accession'].drop_duplicates()
         has_domain.index = has_domain.values
 
-        nonref_analysis_df = pd.concat([nonref_list, identical_to_ref, truncated, has_homologs, has_domain], axis=1, sort=True)
-        nonref_analysis_df.columns = ['nonref_gene','identical_to_ref','truncated_ref','has_homologs','has_domain']
+        trans_len_df = pd.read_csv(input.trans_len, sep='\t', usecols=[0,1], index_col=0, names=['gene','length'], squeeze=True)
+        read_count_df = pd.read_csv(input.read_counts, sep='\t', index_col=0, names=['gene','count'], squeeze=True)
+        gene_rpkm = pd.concat([trans_len_df, read_count_df], axis=1).fillna(0)
+        total_reads = sum(gene_rpkm['count'])
+        gene_rpkm['RPKM'] = 10**9 * gene_rpkm['count'] / (gene_rpkm['length'] * total_reads)
+        min_rpkm = params.min_rpkm
+        nonref_expressed = gene_rpkm.loc[nonref_list].query('RPKM >= @min_rpkm')['RPKM']
+
+        nonref_analysis_df = pd.concat([nonref_list, identical_to_ref, truncated, has_homologs, has_domain, nonref_expressed], axis=1, sort=True)
+        nonref_analysis_df.columns = ['nonref_gene','identical_to_ref','truncated_ref','has_homologs','has_domain', 'expressed']
         nonref_analysis_df = nonref_analysis_df.applymap(lambda x: 0 if pd.isna(x) else 1)
         nonref_analysis_df['nonref_gene'] = nonref_analysis_df.index
         nonref_analysis_df.to_csv(output.analysis_tsv, sep='\t', index=False)
@@ -193,11 +290,11 @@ rule analyze_nonref:
         total_nonref = nonref_analysis_df.shape[0]
         with open(output.report,'w') as fo:
             print("Total nonreference: {}".format(total_nonref), file=fo)
-            for s in ['identical_to_ref', 'truncated_ref', 'has_homologs', 'has_domain']:
+            for s in ['identical_to_ref', 'truncated_ref', 'has_homologs', 'has_domain', 'expressed']:
                 n = nonref_analysis_df.query('{} == 1'.format(s)).shape[0]
                 p = n/total_nonref*100
                 print("{}: {} ({}%)".format(s,n,p), file=fo)
 
-            reliable = nonref_analysis_df.query('identical_to_ref == 0 & truncated_ref == 0 & (has_homologs == 1 | has_domain == 1)').shape[0]
+            reliable = nonref_analysis_df.query('identical_to_ref == 0 & truncated_ref == 0 & (has_homologs == 1 | expressed == 1)').shape[0]
             reliable_perc = reliable/total_nonref*100
             print("Reliable nonreference: {} ({}%)".format(reliable, reliable_perc), file=fo)
