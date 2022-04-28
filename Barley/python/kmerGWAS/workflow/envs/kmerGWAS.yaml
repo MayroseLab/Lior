@@ -1,0 +1,12 @@
+name: kmerGWAS
+channels:
+  - conda-forge
+  - bioconda
+  - r
+dependencies:
+  - python=2.7
+  - gemma=0.98
+  - r-essentials
+  - r-mass
+  - r-mvnpermute
+  - r-matrixcalc

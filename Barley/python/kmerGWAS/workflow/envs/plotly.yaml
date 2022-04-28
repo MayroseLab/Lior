@@ -1,0 +1,7 @@
+name: plotly
+channels:
+  - conda-forge
+dependencies:
+  - python=3
+  - pandas
+  - plotly

@@ -17,16 +17,14 @@ else:
 # job name
 rule_name = job_properties["rule"]
 pref = []
-for x in ['sample', 'chunk', 'CHR', 'partition']:
+for x in ['sample', 'phenotype']:
   if x in job_properties["wildcards"]:
     pref.append(job_properties["wildcards"][x])
 if not pref:
   base = "all_samples"
 else:
   base = '_'.join(pref)
-#queue = job_properties["resources"]["queue"]
-queue = 'itaym'
-#priority = job_properties["resources"]["priority"]
-priority = 1
+queue = job_properties['params']["queue"]
+priority = job_properties['params']["priority"]
 logs_dir = os.path.dirname(job_properties["log"][0])
 os.system("qsub -N {base}_{rule} -p {priority} -q {queue} -l nodes=1:ppn={ppn}{mem} -o {logs_dir}/{base}_{rule}.out -e {logs_dir}/{base}_{rule}.err {script}".format(base=base, rule=rule_name, priority=priority, queue=queue, ppn=ppn, mem=mem, logs_dir=logs_dir, script=jobscript))
