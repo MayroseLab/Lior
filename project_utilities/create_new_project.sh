@@ -2,7 +2,7 @@
 
 projectName=$1
 
-baseDir="/groups/itay_mayrose/liorglic/Projects"
+baseDir="/groups/itay_mayrose/nosnap/liorglic/Projects"
 projectDir="$baseDir/$projectName"
 mkdir $projectDir
 mkdir "$projectDir/R"
