@@ -8,7 +8,8 @@ rule kmerGWAS:
         kinship_matrix = os.path.join(out_dir, 'all_samples', 'kmers_PA_matrix.kinship'),
         phenotype_table = os.path.join(out_dir, 'all_samples', '{phenotype}', '{phenotype}.pheno')
     output:
-        os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS', 'kmers/output/phenotype_value.assoc.txt')
+        os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS', 'kmers/output/phenotype_value.assoc.txt'),
+        os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS', 'kmers/pass_threshold_5per')
     params:
         k = config['k'],
         kmerGWAS_script = os.path.join(config['voichek_code_dir'], 'kmers_gwas.py'),
