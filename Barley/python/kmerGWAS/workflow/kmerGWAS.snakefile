@@ -38,10 +38,12 @@ include: "rules/create_kmer_matrix.smk"
 include: "rules/create_kinship_matrix.smk"
 include: "rules/prepare_phenotypes.smk"
 include: "rules/kmerGWAS.smk"
+include: "rules/extract_significant_kmers.smk"
 
 rule all:
     input:
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS', 'kmers/output/phenotype_value.assoc.txt'), phenotype=phenotypes_list),
+        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per.fasta'), phenotype=phenotypes_list),
+        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_by_acc.tsv'), phenotype=phenotypes_list),
         expand(os.path.join(out_dir, 'all_samples', '{phenotype}', '{phenotype}_histogram.html'), phenotype=phenotypes_list)
 
 for r in workflow.rules:
