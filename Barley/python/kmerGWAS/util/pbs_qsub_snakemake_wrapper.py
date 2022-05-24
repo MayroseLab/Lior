@@ -17,7 +17,7 @@ else:
 # job name
 rule_name = job_properties["rule"]
 pref = []
-for x in ['sample', 'phenotype']:
+for x in ['sample', 'phenotype', 'genome']:
   if x in job_properties["wildcards"]:
     pref.append(job_properties["wildcards"][x])
 if not pref:
