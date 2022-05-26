@@ -11,10 +11,10 @@ rule map_significant_contigs_to_ref:
     log:
         os.path.join(logs_dir, 'map_significant_contigs_to_ref', '{phenotype}_{genome}.map_significant_contigs_to_ref.log')
     conda:
-        os.path.join(envs_dir, 'bwa.yaml')
+        os.path.join(envs_dir, 'minimap.yaml')
     resources:
         mem_gb = 8
     shell:
         """
-        bwa mem {input.ref_genome_fasta} {input.contigs_fasta} > {output}
+        minimap2 -a --secondary=no --split-prefix {wildcards.genome}.tmp {input.ref_genome_fasta} {input.contigs_fasta} -o {output}
         """
