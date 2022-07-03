@@ -61,6 +61,29 @@ rule extract_singificant_kmers_PAV:
         fi
         """
 
+rule  significant_kmers_minus_log_p:
+    """
+    Create a simplified table
+    with all significant k-mers
+    and their -log p-value
+    """
+    input:
+        os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS', 'kmers/pass_threshold_5per')
+    output:
+        os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_minus_logP.tsv')
+    log:
+        os.path.join(logs_dir, 'extract_significant_kmers', '{phenotype}.significant_kmers_minus_log_p.log')
+    run:
+        df = pd.read_csv(input[0], sep='\t')
+        if df.empty:
+            df = pd.DataFrame(columns=['k-mer_ID', 'k-mer_sequence', '-logP'])
+        else:
+            df[['k-mer_sequence', 'k-mer_ID']] = df['rs'].str.split('_', expand=True)
+            df['k-mer_ID'] = 'kmer_' + df['k-mer_ID']
+            df['-logP'] = -np.log10(df['p_lrt'])
+            df = df[['k-mer_ID', 'k-mer_sequence', '-logP']].sort_values(by='-logP', ascending=False)
+        df.to_csv(output[0], sep='\t', index=False)
+
 rule significant_kmers_by_accession:
     """
     Create a TSV file with columns:

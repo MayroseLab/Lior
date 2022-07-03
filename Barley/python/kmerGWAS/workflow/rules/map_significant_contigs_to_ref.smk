@@ -13,7 +13,9 @@ rule map_significant_contigs_to_ref:
     conda:
         os.path.join(envs_dir, 'minimap.yaml')
     resources:
-        mem_gb = 8
+        mem_gb = 32
+    threads:
+        2
     shell:
         """
         minimap2 -a --secondary=no --split-prefix {wildcards.genome}.tmp {input.ref_genome_fasta} {input.contigs_fasta} -o {output}

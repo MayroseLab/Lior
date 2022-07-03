@@ -15,12 +15,11 @@ rule kmerGWAS:
         kmerGWAS_script = os.path.join(config['voichek_code_dir'], 'kmers_gwas.py'),
         kmer_matrix_pref = os.path.join(out_dir, 'all_samples', 'kmers_PA_matrix'),
         out_dir = os.path.join(out_dir, 'all_samples', '{phenotype}', 'GWAS'),
-        gemma_path = os.path.join(config['voichek_code_dir'], 'external_programs/gemma_0_96'),
         kmers_to_analyze = config['kmers_to_analyze']
     log:
         os.path.join(logs_dir, 'kmerGWAS', '{phenotype}.kmerGWAS.log')
     resources:
-        mem_gb = 4
+        mem_gb = 16
     threads:
         config['cpu']
     conda:

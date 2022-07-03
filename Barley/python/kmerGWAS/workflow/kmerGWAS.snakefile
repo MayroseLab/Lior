@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 
 out_dir = config['out_dir']
 logs_dir = os.path.join(out_dir, 'logs')
@@ -47,6 +48,9 @@ def get_genome(wildcards):
     query = 'genome_name == @genome'
     fasta = genomes_df.query(query)['fasta'].values[0]
     return fasta
+
+def get_mem_gb(wildcards, attempt):
+    return attempt * 8
     
 include: "rules/KMC.smk"
 include: "rules/create_kmer_matrix.smk"
@@ -59,13 +63,19 @@ include: "rules/filter_kmer_mapping.smk"
 include: "rules/index_genome.smk"
 include: "rules/extract_significant_contigs.smk"
 include: "rules/map_significant_contigs_to_ref.smk"
+include: "rules/filter_contig_mapping.smk"
+include: "rules/project_kmers_to_ref.smk"
+include: 'rules/create_final_results_table.smk'
+
+wildcard_constraints:
+    genome = '[A-Za-z0-9_\-]+',
+    phenotype = '[A-Za-z0-9_\-]+'
 
 rule all:
     input:
         expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_by_acc.tsv'), phenotype=phenotypes_list),
         expand(os.path.join(out_dir, 'all_samples', '{phenotype}', '{phenotype}_histogram.html'), phenotype=phenotypes_list),
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'map_signif_kmers', 'pass_threshold_5per_vs_{genome}.filter.sam'), phenotype=phenotypes_list, genome=all_genomes),
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'map_signif_kmers', 'pass_threshold_5per_{genome}.signif_contigs_vs_%s.sam' % ref_genome), phenotype=phenotypes_list, genome=LQ_genomes)
+        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_mapping.tsv'), phenotype=phenotypes_list)
 
 for r in workflow.rules:
     r.set_params(queue=config["queue"])
