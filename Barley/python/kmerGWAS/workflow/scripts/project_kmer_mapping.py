@@ -101,8 +101,9 @@ if __name__ == "__main__":
   kmer_sam_df = sam_to_df(kmer_sam, 'kmer')
   contigs_sam_df = sam_to_df(contigs_sam, 'contig')
 
+  out_headers = ['k-mer_ID', 'contig', 'contig_Pos', 'Chr_%s' % acc_name, 'Pos_%s' % acc_name, 'Pos_type']
   if kmer_sam_df.empty or contigs_sam_df.empty:
-    out_df = pd.DataFrame(columns=['k-mer_ID', 'Chr', 'Pos'])
+    out_df = pd.DataFrame(columns=out_headers)
   else:
     # Join k-mers and contigs DFs based on contig name
     join_df = kmer_sam_df.merge(contigs_sam_df, how='inner', left_on='kmer_RNAM', right_on='contig_QNAM')
@@ -113,5 +114,5 @@ if __name__ == "__main__":
     # Create output DF: k-mer ID   contig   coordinate_on_contig   chromosome   coordinate_on_chromosome   CIGAR_operation
     # add acc_name to chromosome and coordinate_on_chromosome
     out_df = join_df[['kmer_QNAM', 'kmer_RNAM', 'kmer_POS', 'contig_RNAM', 'kmer_POS_project', 'kmer_POS_type']]
-    out_df.columns = ['k-mer_ID', 'contig', 'contig_Pos', 'Chr_%s' % acc_name, 'Pos_%s' % acc_name, 'Pos_type']
+    out_df.columns = out_headers
   out_df.to_csv(out_tsv, sep='\t', index=False)
