@@ -12,10 +12,12 @@ pval_df = pd.read_csv(pval_tsv, sep='\t', index_col=0)
 df_list.append(pval_df)
 
 direct_mapping_df = pd.read_csv(direct_mapping_sam, sep='\t', comment='@', usecols=[0,2,3], index_col=0, names=['k-mer_ID', 'Chr','Pos'])
+if direct_mapping_df.empty:
+  direct_mapping_df = pd.DataFrame(columns=['k-mer_ID', 'Chr','Pos'])
 df_list.append(direct_mapping_df)
 
 for proj_tsv in projection_tsvs:
-  proj_df = pd.read_csv(proj_tsv, sep='\t', usecols=[0,3,4], index_col=0)
+  proj_df = pd.read_csv(proj_tsv, sep='\t', index_col=0).iloc[:,[2,3]]
   df_list.append(proj_df)
 
 final_df = pd.concat(df_list, axis=1)
