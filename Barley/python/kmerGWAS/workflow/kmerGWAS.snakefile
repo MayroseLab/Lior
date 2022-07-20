@@ -66,6 +66,7 @@ include: "rules/map_significant_contigs_to_ref.smk"
 include: "rules/filter_contig_mapping.smk"
 include: "rules/project_kmers_to_ref.smk"
 include: 'rules/create_final_results_table.smk'
+include: 'rules/create_final_report.smk'
 
 wildcard_constraints:
     genome = '[A-Za-z0-9_\-]+',
@@ -73,9 +74,7 @@ wildcard_constraints:
 
 rule all:
     input:
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_by_acc.tsv'), phenotype=phenotypes_list),
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', '{phenotype}_histogram.html'), phenotype=phenotypes_list),
-        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'pass_threshold_5per_mapping.tsv'), phenotype=phenotypes_list)
+        expand(os.path.join(out_dir, 'all_samples', '{phenotype}', 'report.html'), phenotype=phenotypes_list)
 
 for r in workflow.rules:
     r.set_params(queue=config["queue"])
