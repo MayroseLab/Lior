@@ -1,0 +1,3 @@
+NameError in file /groups/itay_mayrose_nosnap/liorglic/Projects/intron_evolution/python/species_level_analysis/workflow/tmp.snakefile, line 13:
+name 'rule' is not defined
+  File "/groups/itay_mayrose_nosnap/liorglic/Projects/intron_evolution/python/species_level_analysis/workflow/tmp.snakefile", line 13, in <module>

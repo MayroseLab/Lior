@@ -1,0 +1,38 @@
+import os
+import sys
+import ftputil
+import pandas as pd
+from scipy import stats
+
+out_dir = config['out_dir']
+logs_dir = os.path.join(out_dir, 'logs')
+envs_dir = os.path.join(workflow.basedir, 'envs')
+scripts_dir = os.path.join(workflow.basedir, 'scripts')
+if '--configfile' in sys.argv:
+    i = sys.argv.index('--configfile')
+elif '--configfiles' in sys.argv:
+    i = sys.argv.index('--configfiles')
+conf_path = sys.argv[i+1]
+
+species_df = pd.read_csv(config['species_tsv'], sep='\t', index_col=0, comment='#')
+species_list = list(species_df.index)
+repeat_types = [t.strip() for t in config['repeat_types'].split(',')]
+
+localrules: all
+
+rules_dir = os.path.join(workflow.basedir, 'rules')
+for smk in os.listdir(rules_dir):
+    if not smk.endswith('.smk'):
+        continue
+    include: os.path.join(rules_dir, smk)
+
+
+rule all:
+    input:
+        os.path.join(out_dir, 'all_species', 'repeats.stats'),
+        os.path.join(out_dir, 'all_species', 'repeats_intron_length_model.stats'),
+        os.path.join(out_dir, 'all_species', 'intron_lengths.stats')
+
+for r in workflow.rules:
+    r.set_params(queue=config["queue"])
+    r.set_params(priority=config["priority"])

@@ -1,0 +1,8 @@
+name: bioperl
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - perl=5.26
+  - perl-dbi
+  - perl-dbd-mysql
