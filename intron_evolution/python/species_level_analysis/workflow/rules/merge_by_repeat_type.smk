@@ -22,8 +22,8 @@ rule merge_by_repeat_type:
         """
         if [ {wildcards.rep_type} == "all" ]
         then
-            sort -k1,1 -k2,2n {input} | bedtools merge > {output}
+            cut -f1,2,3 {input} | sort -k1,1 -k2,2n | bedtools merge > {output}
         else
-            awk '$6 == "{wildcards.rep_type}"' {input} | sort -k1,1 -k2,2n | bedtools merge > {output}
+            awk '$6 == "{wildcards.rep_type}"' {input} | cut -f1,2,3 | sort -k1,1 -k2,2n | bedtools merge > {output}
         fi
         """
