@@ -22,7 +22,7 @@ rule download_genome:
         all_files = ftp.listdir(ftp.curdir)
         sm_genome = [f for f in all_files if f.endswith('.dna_sm.toplevel.fa.gz')]
         if len(sm_genome) != 1:
-            print(full_gff)
+            print(sm_genome)
             sys.exit(f"Can't determine soft-masked genome for species {species}")
         sm_genome = sm_genome[0]
         ftp.download(sm_genome, output[0] + '.gz')
