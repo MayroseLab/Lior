@@ -18,6 +18,8 @@ rule download_repeats:
     params:
         download_script = os.path.join(scripts_dir, 'download_repeats_from_ENSEMBL_API.pl'),
         group = get_group
+    resources:
+        mem_mb = 4000
     shell:
         """
         PERL5LIB=${{CONDA_PREFIX}}/src/bioperl-1.6.924
