@@ -20,10 +20,16 @@ rule download_genome:
             ftp = ftputil.FTPHost(ensembl_genomes_ftp, "anonymous", "")
             ftp.chdir(f'pub/current/{group}/fasta/{species}/dna')
         all_files = ftp.listdir(ftp.curdir)
-        sm_genome = [f for f in all_files if f.endswith('.dna_sm.toplevel.fa.gz')]
-        if len(sm_genome) != 1:
-            print(sm_genome)
+        # Check if "primary assembly" exists
+        prim_asm = [f for f in all_files if f.endswith('_sm.primary_assembly.fa.gz')]
+        if len(prim_asm) > 0:
+            asm_files = prim_asm
+        # if not, take "toplevel"
+        else:
+            asm_files = [f for f in all_files if f.endswith('.dna_sm.toplevel.fa.gz')]
+        if len(asm_files) != 1:
+            print(asm_files)
             sys.exit(f"Can't determine soft-masked genome for species {species}")
-        sm_genome = sm_genome[0]
+        sm_genome = asm_files[0]
         ftp.download(sm_genome, output[0] + '.gz')
         os.system('gzip -d ' + output[0] + '.gz')
