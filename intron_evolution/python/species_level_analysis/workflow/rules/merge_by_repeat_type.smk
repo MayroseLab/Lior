@@ -11,7 +11,8 @@ rule merge_by_repeat_type:
     input:
         os.path.join(out_dir, 'per_species', '{species}', 'repeats', 'repeats.bed')
     output:
-        os.path.join(out_dir, 'per_species', '{species}', 'repeats', '{rep_type}.merge.bed')
+        merged_type = os.path.join(out_dir, 'per_species', '{species}', 'repeats', '{rep_type}.merge.bed'),
+        all_minus_type = os.path.join(out_dir, 'per_species', '{species}', 'repeats', 'all-{rep_type}.merge.bed')
     log:
         os.path.join(logs_dir, 'merge_by_repeat_type', '{species}.{rep_type}.merge_by_repeat_type.log')
     conda:
@@ -22,8 +23,10 @@ rule merge_by_repeat_type:
         """
         if [ {wildcards.rep_type} == "all" ]
         then
-            cut -f1,2,3 {input} | sort -k1,1 -k2,2n | bedtools merge > {output}
+            cut -f1,2,3 {input} | sort -k1,1 -k2,2n | bedtools merge > {output.merged_type}
+            touch {output.all_minus_type}
         else
-            awk '$6 == "{wildcards.rep_type}"' {input} | cut -f1,2,3 | sort -k1,1 -k2,2n | bedtools merge > {output}
+            awk '$6 == "{wildcards.rep_type}"' {input} | cut -f1,2,3 | sort -k1,1 -k2,2n | bedtools merge > {output.merged_type}
+            awk '$6 != "{wildcards.rep_type}"' {input} | cut -f1,2,3 | sort -k1,1 -k2,2n | bedtools merge > {output.all_minus_type}
         fi
         """
