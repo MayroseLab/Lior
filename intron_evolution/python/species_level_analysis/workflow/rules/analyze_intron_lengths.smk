@@ -21,7 +21,13 @@ rule analyze_intron_lengths:
         stats.index = ['min', 'max', 'mean', 'median', 'count']
         mean_introns_per_trans = introns_df['attributes'].value_counts().mean()
         stats['mean_per_transcript'] = mean_introns_per_trans
+        genes_df = gff_df.query('type == "mRNA"')
+        genes_df['length'] = genes_df['end'] - genes_df['start'] + 1
+        genes_total = genes_df['length'].sum()
+        introns_total = introns_df['length'].sum()
+        gene_intron_content = introns_total/genes_total*100
+        stats['genes_intron_content'] = gene_intron_content
         stats['species'] = wildcards.species
-        stats = stats[['species', 'min', 'max', 'mean', 'median', 'count', 'mean_per_transcript']]
+        stats = stats[['species', 'min', 'max', 'mean', 'median', 'count', 'mean_per_transcript', 'genes_intron_content']]
         with open(output[0], 'w') as fo:
             print('\t'.join([str(s) for s in stats]), file=fo)

@@ -5,7 +5,8 @@ rule analyze_repeats:
     """
     input:
         introns_bed = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.introns.bed'),
-        intergenic_bed = os.path.join(out_dir, 'per_species', '{species}', 'intergenic.bed'),
+        introns_flank_size_limit_bed = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.introns.flank_size_limit.bed'),
+        intergenic_bed = os.path.join(out_dir, 'per_species', '{species}', 'PIR.bed'),
         repeats_bed = os.path.join(out_dir, 'per_species', '{species}', 'repeats', '{rep_type}.merge.bed'),
         genome_file = os.path.join(out_dir, 'per_species', '{species}', 'genome.sm.genome')
     output:
@@ -30,7 +31,8 @@ rule analyze_repeats:
         perc_rep_intergenic=$(echo "$rep_in_inter/$tot_intergenic*100" | bc -l)
 
         mean_rep_len_introns=$(bedtools intersect -a {input.repeats_bed} -b {input.introns_bed} -f 1 -wa | awk '{{SUM+=$3-$2; N+=1}}END{{ if (N==0) {{print 0}} else {{print SUM/N}}}}')
+        mean_rep_len_introns_limit=$(bedtools intersect -a {input.repeats_bed} -b {input.introns_flank_size_limit_bed} -f 1 -wa | awk '{{SUM+=$3-$2; N+=1}}END{{ if (N==0) {{print 0}} else {{print SUM/N}}}}')
         mean_rep_len_intergenic=$(bedtools intersect -a {input.repeats_bed} -b {input.intergenic_bed} -f 1 -wa | awk '{{SUM+=$3-$2; N+=1}}END{{ if (N==0) {{print 0}} else {{print SUM/N}}}}')
 
-        echo -e "{wildcards.species}\t{wildcards.rep_type}\t$tot_asm\t$tot_repeats\t$tot_int\t$tot_intergenic\t$perc_rep_genome\t$perc_rep_introns\t$perc_rep_intergenic\t$mean_rep_len_introns\t$mean_rep_len_intergenic" > {output}
+        echo -e "{wildcards.species}\t{wildcards.rep_type}\t$tot_asm\t$tot_repeats\t$tot_int\t$tot_intergenic\t$perc_rep_genome\t$perc_rep_introns\t$perc_rep_intergenic\t$mean_rep_len_introns\t$mean_rep_len_introns_limit\t$mean_rep_len_intergenic" > {output}
         """

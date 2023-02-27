@@ -13,7 +13,7 @@ rule collect_repeat_stats:
         os.path.join(logs_dir, 'collect_repeat_stats', 'all_species.collect_repeat_stats.log')
     run:
         shell("cat {input.stats} > {output.stats}")
-        headers = ['Repeat type', 'Assembly size', 'Total repeas', 'Total introns', 'Total intergenic', 'Percent of genome covered by repeats', 'Percent of introns covered by repeats', 'Percent of intergenic covered by repeats', 'Mean repeat length in introns', 'Mean repeat length in intergenic']
+        headers = ['Repeat type', 'Assembly size', 'Total repeas', 'Total introns', 'Total intergenic', 'Percent of genome covered by repeats', 'Percent of introns covered by repeats', 'Percent of intergenic covered by repeats', 'Mean repeat length in introns', 'Mean repeat length in introns shorter than flank size', 'Mean repeat length in intergenic']
         rep_df = pd.read_csv(output['stats'], sep='\t', names=headers, index_col=0)
         rep_df['group'] = rep_df.index.map(species_df['group'])
         rep_df.to_csv(output['stats'], sep='\t', float_format=lambda x: round(x,2))
