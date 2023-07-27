@@ -20,7 +20,7 @@ rule download_annotation:
             ftp = ftputil.FTPHost(ensembl_genomes_ftp, "anonymous", "")
             ftp.chdir(f'pub/current/{group}/gff3/{species}')
         all_files = ftp.listdir(ftp.curdir)
-        full_gff = [f for f in all_files if f.endswith('.gff3.gz') and '.chr.' not in f and '.chromosome.' not in f and '.primary_assembly.' not in f and  '.abinitio.' not in f and 'group' not in f and '.chr_patch_hapl_scaff.' not in f]
+        full_gff = [f for f in all_files if f.endswith('.gff3.gz') and '.chr.' not in f and '.chromosome.' not in f and '.primary_assembly.' not in f and  '.abinitio.' not in f and 'group' not in f and '.chr_patch_hapl_scaff.' not in f and '.supercontig.' not in f and '.scaffold.' not in f]
         if len(full_gff) != 1:
             print(full_gff)
             sys.exit(f"Can't determine gff3 for species {species}")

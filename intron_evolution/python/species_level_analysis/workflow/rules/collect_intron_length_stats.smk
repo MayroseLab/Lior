@@ -11,10 +11,8 @@ rule collect_intron_length_stats:
     log:
         os.path.join(logs_dir, 'collect_intron_length_stats', 'all_species.collect_intron_length_stats.log')
     run:
-        shell("cat {input.intron_length} > {output}.il")
-        shell("cat {input.genome_size} > {output}.gs")
-        headers = ['Min', 'Max', 'Mean', 'Median', 'Total number of introns', 'Mean number of introns per transcript', 'Genes intron content']
-        len_df = pd.read_csv(output[0]+'.il', sep='\t', names=headers, index_col=0)
-        gs_df = pd.read_csv(output[0]+'.gs', sep='\t', names=['genome_size'], index_col=0)
-        len_df = pd.concat([species_df, len_df, gs_df], axis=1)
+        len_df = pd.concat([pd.read_csv(tsv, sep='\t', index_col=0) for tsv in input['intron_length']])
+        gs_df = pd.concat([pd.read_csv(tsv, sep='\t', index_col=0, names=['Genome_size']) for tsv in input['genome_size']])
+        gs_df = pd.concat([species_df, gs_df], axis=1)
+        len_df = len_df.join(gs_df, how='outer')
         len_df.to_csv(output[0], sep='\t', float_format=lambda x: round(x,2))

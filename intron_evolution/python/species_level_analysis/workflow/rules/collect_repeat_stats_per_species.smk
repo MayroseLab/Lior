@@ -5,7 +5,7 @@ rule collect_repeat_stats_per_species:
     repeat types
     """
     input:
-        expand(os.path.join(out_dir, 'per_species', '{{species}}', 'repeats.{rep_type}.stats'), rep_type=['all'] + repeat_types + ['all-%s' % rt for rt in repeat_types])
+        expand(os.path.join(out_dir, 'per_species', '{{species}}', 'repeats.{rep_type}.stats'), rep_type=['all'] + repeat_types)
     output:
         os.path.join(out_dir, 'per_species', '{species}', 'repeats.stats')
     log:

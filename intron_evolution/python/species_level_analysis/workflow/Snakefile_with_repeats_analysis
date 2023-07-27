@@ -1,9 +1,3 @@
-"""
-This simplified Snakefile only
-generates data for intron lengths
-and genome sizes (no repeats)
-"""
-
 import os
 import sys
 import ftputil
@@ -25,22 +19,20 @@ species_list = list(species_df.index)
 repeat_types = [t.strip() for t in config['repeat_types'].split(',')]
 
 localrules: all
+ruleorder: merge_by_repeat_type > subtract_repeat_type
 
 rules_dir = os.path.join(workflow.basedir, 'rules')
-
-include: os.path.join(rules_dir, 'download_annotation.smk')
-include: os.path.join(rules_dir, 'remove_alt_splicing.smk')
-include: os.path.join(rules_dir, 'add_introns.smk')
-include: os.path.join(rules_dir, 'analyze_intron_lengths.smk')
-include: os.path.join(rules_dir, 'calculate_genome_size_from_gff3.smk')
-include: os.path.join(rules_dir, 'collect_intron_length_stats.smk')
-include: os.path.join(rules_dir, 'calculate_distance_matrix.smk')
+for smk in os.listdir(rules_dir):
+    if not smk.endswith('.smk'):
+        continue
+    include: os.path.join(rules_dir, smk)
 
 
 rule all:
     input:
-        os.path.join(out_dir, 'all_species', 'intron_lengths.stats'),
-        os.path.join(out_dir, 'all_species', 'distance_matrix.tsv')
+        os.path.join(out_dir, 'all_species', 'repeats.stats'),
+        os.path.join(out_dir, 'all_species', 'repeats_intron_length_model.stats'),
+        os.path.join(out_dir, 'all_species', 'intron_lengths.stats')
 
 for r in workflow.rules:
     r.set_params(queue=config["queue"])
