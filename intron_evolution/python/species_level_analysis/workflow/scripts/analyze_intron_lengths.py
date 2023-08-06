@@ -64,9 +64,48 @@ def kde_peaks(x, y, frac=0.1, min_dist=20):
       break
   return peaks_pairs_sort[:i]
 
+def intron_len_ratios(trans_df, column):
+  """
+  Expects a DF of introns from a
+  single transcript (result of groupby).
+  Calculates several intron length ratios
+  """
+  colnames = ['first_from_total_ratio', 'longest_intron', 'first_to_max_nonfirst_ratio', 'max_to_min_ratio']
+  # if single intron - return NA
+  if trans_df.shape[0] == 1:
+    return pd.Series([np.nan]*len(colnames), index=colnames)
+  first_intron_len = trans_df.query('intron_index == 1')[column].iloc[0]
+  total_intron_len = trans_df[column].sum()
+  max_nonfirst_intron_len = trans_df.query('intron_index > 1')[column].max()
+  max_intron_length = max(first_intron_len,max_nonfirst_intron_len)
+  longest_intron = trans_df.query(f'{column} == {max_intron_length}')['intron_index'].values[0]
+  min_intron_length = trans_df[column].min()
+  first_from_total_ratio = (first_intron_len/total_intron_len)
+  first_to_max_nonfirst_ratio = (first_intron_len/max_nonfirst_intron_len)
+  max_to_min_ratio = max_intron_length/min_intron_length
+  return pd.Series([first_from_total_ratio, longest_intron, first_to_max_nonfirst_ratio, max_to_min_ratio], index=colnames)
+
+def simulate(df):
+  """
+  Simulate a DF of introns by
+  permutations of the true one,
+  so the number of introns of
+  each rank is kept
+  """
+  n_trans = len(df['Parent'].unique())
+  sim_trans_names = pd.Series([f'transSim{i}' for i in range(n_trans)])
+  sim_df = df.copy()
+  sim_df.sort_values(by='intron_index', inplace=True)
+  rank_counts = sim_df['intron_index'].value_counts()
+  parents = [sim_trans_names[:c].sample(frac=1) for c in rank_counts]
+  parents = pd.concat(parents)
+  parents.index = sim_df.index
+  sim_df['Parent'] = parents
+  return sim_df
+
 def calc_stats(gff_df, column, name, query=None):
   
-  stats_list = ['Min', 'Max','Mean', 'STD', 'Q10','Q25','Q50','Q75','Q90','Modes', 'M1_x', 'M1_y', 'M2_x', 'M2_y', 'Introns_count', 'Total_intron_length', 'Transcripts_count', 'Total_transcript_length', 'Transcripts_containing_introns', 'Mean_per_transcript', 'Total_intron_fraction', 'Mean_intron_fraction', 'Dataset']
+  stats_list = ['Min', 'Max','Mean', 'STD', 'Q10','Q25','Q50','Q75','Q90','Modes', 'M1_x', 'M1_y', 'M2_x', 'M2_y', 'Introns_count', 'Total_intron_length', 'Transcripts_count', 'Total_transcript_length', 'Transcripts_containing_introns', 'Mean_per_transcript', 'Total_intron_fraction', 'Mean_intron_fraction', 'mean_first_from_total_intronic_ratio', 'mean_first_to_max_nonfirst_intron_ratio', 'perc_first_intron_longest', 'mean_max_to_min_intron_ratio', 'mean_max_to_min_intron_ratio_perm_p', 'Dataset']
 
   # per-transcript stats
   trans_df = gff_df.query('type == "mRNA"')
@@ -140,7 +179,28 @@ def calc_stats(gff_df, column, name, query=None):
   total_len = vec.sum()
   total_intron_fraction = total_len/total_trans_len
 
-  stats = pd.Series([min_, max_, mean, std, q10, q25, q50, q75, q90, n_modes, m1_x, m1_y, m2_x, m2_y, count, total_len,  trans_count, total_trans_len, trans_with_introns, mean_introns_per_trans, total_intron_fraction, mean_intron_frac, name], index=stats_list)
+  intron_len_ratios_df = df.groupby('Parent').apply(intron_len_ratios, column=column)
+  mean_first_from_toal_intronic_ratio = intron_len_ratios_df['first_from_total_ratio'].mean()
+  mean_first_to_max_nonfirst_intron_ratio = intron_len_ratios_df['first_to_max_nonfirst_ratio'].mean()
+  mean_max_to_min_intron_ratio = intron_len_ratios_df['max_to_min_ratio'].mean()
+  try:
+    perc_first_intron_longest = intron_len_ratios_df.query('longest_intron == 1').shape[0] / intron_len_ratios_df.query('longest_intron >= 1').shape[0] * 100
+  except ZeroDivisionError:
+    perc_first_intron_longest = np.nan
+
+  nsim = 1000
+  sim_stats = []
+  for s in range(nsim):
+    sim_df = simulate(df)
+    max_intron = sim_df.groupby('Parent')[column].max()
+    min_intron = sim_df.groupby('Parent')[column].min()
+    max2min_ratio = max_intron/min_intron
+    sim_stat = max2min_ratio.loc[max2min_ratio != 1].mean()
+    sim_stats.append(sim_stat)
+  sim_stats = pd.Series(sim_stats)
+  mean_max_to_min_intron_ratio_perm_p = len(sim_stats.loc[sim_stats <= mean_max_to_min_intron_ratio])/nsim
+
+  stats = pd.Series([min_, max_, mean, std, q10, q25, q50, q75, q90, n_modes, m1_x, m1_y, m2_x, m2_y, count, total_len,  trans_count, total_trans_len, trans_with_introns, mean_introns_per_trans, total_intron_fraction, mean_intron_frac, mean_first_from_toal_intronic_ratio, mean_first_to_max_nonfirst_intron_ratio, perc_first_intron_longest, mean_max_to_min_intron_ratio, mean_max_to_min_intron_ratio_perm_p, name], index=stats_list)
 
   stats = pd.DataFrame(stats).transpose()
   return stats
@@ -159,12 +219,13 @@ if __name__ == "__main__":
 
   all_introns_stats = calc_stats(gff_df, 'length', 'all')
   all_introns_log_stats = calc_stats(gff_df, 'log_length', 'all_log')
-  first_introns_stats = calc_stats(gff_df, 'length', 'first', query='intron_index == 1')
-  first_introns_log_stats = calc_stats(gff_df, 'log_length', 'first_log', query='intron_index == 1')
-  nonfirst_introns_stats = calc_stats(gff_df, 'length', 'nonfirst', query='intron_index > 1')
-  nonfirst_introns_log_stats = calc_stats(gff_df, 'log_length', 'nonfirst_log', query='intron_index > 1')
+  #first_introns_stats = calc_stats(gff_df, 'length', 'first', query='intron_index == 1')
+  #first_introns_log_stats = calc_stats(gff_df, 'log_length', 'first_log', query='intron_index == 1')
+  #nonfirst_introns_stats = calc_stats(gff_df, 'length', 'nonfirst', query='intron_index > 1')
+  #nonfirst_introns_log_stats = calc_stats(gff_df, 'log_length', 'nonfirst_log', query='intron_index > 1')
 
-  stats_df = pd.concat([all_introns_stats,all_introns_log_stats,first_introns_stats,first_introns_log_stats,nonfirst_introns_stats,nonfirst_introns_log_stats])
+  #stats_df = pd.concat([all_introns_stats,all_introns_log_stats,first_introns_stats,first_introns_log_stats,nonfirst_introns_stats,nonfirst_introns_log_stats])
+  stats_df = pd.concat([all_introns_stats,all_introns_log_stats])
 
   stats_df.index = [species]*stats_df.shape[0]
 
