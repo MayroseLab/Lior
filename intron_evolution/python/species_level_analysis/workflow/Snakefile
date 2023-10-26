@@ -22,7 +22,7 @@ conf_path = sys.argv[i+1]
 
 species_df = pd.read_csv(config['species_tsv'], sep='\t', index_col=0, comment='#')
 species_list = list(species_df.index)
-repeat_types = [t.strip() for t in config['repeat_types'].split(',')]
+features = ['intron_counts', 'intron_fractions', 'intron_lengths']
 
 localrules: all
 
@@ -35,12 +35,14 @@ include: os.path.join(rules_dir, 'analyze_intron_lengths.smk')
 include: os.path.join(rules_dir, 'calculate_genome_size_from_gff3.smk')
 include: os.path.join(rules_dir, 'collect_intron_length_stats.smk')
 include: os.path.join(rules_dir, 'calculate_distance_matrix.smk')
-
+include: os.path.join(rules_dir, 'protein_BUSCO.smk')
+include: os.path.join(rules_dir, 'collect_BUSCO_stats.smk')
 
 rule all:
     input:
         os.path.join(out_dir, 'all_species', 'intron_lengths.stats'),
-        os.path.join(out_dir, 'all_species', 'distance_matrix.tsv')
+        expand(os.path.join(out_dir, 'all_species', '{feature}_KS_dist.tsv'), feature=features),
+        expand(os.path.join(out_dir, 'all_species', 'BUSCO_{feature}.stats'), feature=['total_intron_len','n_introns','intron_frac','total_exon_len','intron_lens', 'protein_len'])
 
 for r in workflow.rules:
     r.set_params(queue=config["queue"])

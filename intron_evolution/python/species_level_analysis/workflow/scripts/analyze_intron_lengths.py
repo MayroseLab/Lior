@@ -105,11 +105,12 @@ def simulate(df):
 
 def calc_stats(gff_df, column, name, query=None):
   
-  stats_list = ['Min', 'Max','Mean', 'STD', 'Q10','Q25','Q50','Q75','Q90','Modes', 'M1_x', 'M1_y', 'M2_x', 'M2_y', 'Introns_count', 'Total_intron_length', 'Transcripts_count', 'Total_transcript_length', 'Transcripts_containing_introns', 'Mean_per_transcript', 'Total_intron_fraction', 'Mean_intron_fraction', 'mean_first_from_total_intronic_ratio', 'mean_first_to_max_nonfirst_intron_ratio', 'perc_first_intron_longest', 'mean_max_to_min_intron_ratio', 'mean_max_to_min_intron_ratio_perm_p', 'Dataset']
+  stats_list = ['Min', 'Max','Mean', 'STD', 'Q10','Q25','Q50','Q75','Q90','Modes', 'M1_x', 'M1_y', 'M2_x', 'M2_y', 'Introns_count', 'Total_intron_length', 'Mean_exon', 'Transcripts_count', 'Total_transcript_length', 'Transcripts_containing_introns', 'Mean_per_transcript', 'Mean_total_intron_length_per_transcript', 'Mean_total_exon_length_per_transcript', 'Total_intron_fraction', 'Mean_intron_fraction', 'mean_first_from_total_intronic_ratio', 'mean_first_to_max_nonfirst_intron_ratio', 'perc_first_intron_longest', 'mean_max_to_min_intron_ratio', 'mean_max_to_min_intron_ratio_perm_p', 'Dataset']
 
   # per-transcript stats
   trans_df = gff_df.query('type == "mRNA"')
   df = gff_df.query('type == "intron"')
+  exon_df = gff_df.query('type == "exon"')
 
   df.sort_values(by=['seqid','start'], inplace=True)
   df_plus = df.query('strand == "+"')
@@ -140,6 +141,9 @@ def calc_stats(gff_df, column, name, query=None):
   total_trans_len = trans_len.sum()
   
   intron_len_per_trans = df.groupby('Parent')[column].sum()
+  mean_intron_len_per_trans = intron_len_per_trans.mean()
+  exon_len_per_trans = exon_df.groupby('Parent')[column].sum()
+  mean_exon_len_per_trans = exon_len_per_trans.mean()
   single_exon_trans_introns_len = pd.Series(0, index=single_exon_trans)
   intron_len_per_trans = pd.concat([intron_len_per_trans, single_exon_trans_introns_len])
   intron_len_per_trans.name = column
@@ -159,6 +163,9 @@ def calc_stats(gff_df, column, name, query=None):
   max_ = vec.max()
   mean = vec.mean()
   std = vec.std()
+
+  # exons stats
+  mean_exon = exon_df[column].mean()
   
   kde_x, kde_y = kde(vec)
   peaks = kde_peaks(kde_x, kde_y)
@@ -200,7 +207,8 @@ def calc_stats(gff_df, column, name, query=None):
   sim_stats = pd.Series(sim_stats)
   mean_max_to_min_intron_ratio_perm_p = len(sim_stats.loc[sim_stats <= mean_max_to_min_intron_ratio])/nsim
 
-  stats = pd.Series([min_, max_, mean, std, q10, q25, q50, q75, q90, n_modes, m1_x, m1_y, m2_x, m2_y, count, total_len,  trans_count, total_trans_len, trans_with_introns, mean_introns_per_trans, total_intron_fraction, mean_intron_frac, mean_first_from_toal_intronic_ratio, mean_first_to_max_nonfirst_intron_ratio, perc_first_intron_longest, mean_max_to_min_intron_ratio, mean_max_to_min_intron_ratio_perm_p, name], index=stats_list)
+
+  stats = pd.Series([min_, max_, mean, std, q10, q25, q50, q75, q90, n_modes, m1_x, m1_y, m2_x, m2_y, count, total_len, mean_exon,  trans_count, total_trans_len, trans_with_introns, mean_introns_per_trans, mean_intron_len_per_trans, mean_exon_len_per_trans, total_intron_fraction, mean_intron_frac, mean_first_from_toal_intronic_ratio, mean_first_to_max_nonfirst_intron_ratio, perc_first_intron_longest, mean_max_to_min_intron_ratio, mean_max_to_min_intron_ratio_perm_p, name], index=stats_list)
 
   stats = pd.DataFrame(stats).transpose()
   return stats
