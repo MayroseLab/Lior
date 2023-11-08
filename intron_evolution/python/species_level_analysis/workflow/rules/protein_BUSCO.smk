@@ -1,6 +1,3 @@
-lineage = config['BUSCO_lineage']
-busco_lineages_ftp = 'https://busco-data.ezlab.org/v5/data'
-
 rule download_lineage:
     """
     Download the BUSCO lineage dataset

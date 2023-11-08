@@ -23,6 +23,13 @@ conf_path = sys.argv[i+1]
 species_df = pd.read_csv(config['species_tsv'], sep='\t', index_col=0, comment='#')
 species_list = list(species_df.index)
 features = ['intron_counts', 'intron_fractions', 'intron_lengths']
+#classes = list(species_df['class'].dropna().unique())
+classes = ['Arachnida']
+
+lineage = config['BUSCO_lineage']
+busco_lineages_ftp = 'https://busco-data.ezlab.org/v5/data'
+with open(config['BUSCO_list']) as f:
+    busco_list = [l.strip() for l in f.readlines()]
 
 localrules: all
 
@@ -37,12 +44,20 @@ include: os.path.join(rules_dir, 'collect_intron_length_stats.smk')
 include: os.path.join(rules_dir, 'calculate_distance_matrix.smk')
 include: os.path.join(rules_dir, 'protein_BUSCO.smk')
 include: os.path.join(rules_dir, 'collect_BUSCO_stats.smk')
+include: os.path.join(rules_dir, 'create_class_species_list.smk')
+include: os.path.join(rules_dir, 'collect_class_BUSCO_sequences.smk')
+include: os.path.join(rules_dir, 'BUSCO_MSA.smk')
+include: os.path.join(rules_dir, 'infer_BUSCO_tree.smk')
+include: os.path.join(rules_dir, 'calculate_change.smk')
+include: os.path.join(rules_dir, 'collect_change_stats.smk')
+
 
 rule all:
     input:
         os.path.join(out_dir, 'all_species', 'intron_lengths.stats'),
         expand(os.path.join(out_dir, 'all_species', '{feature}_KS_dist.tsv'), feature=features),
-        expand(os.path.join(out_dir, 'all_species', 'BUSCO_{feature}.stats'), feature=['total_intron_len','n_introns','intron_frac','total_exon_len','intron_lens', 'protein_len'])
+        expand(os.path.join(out_dir, 'all_species', 'BUSCO_{feature}.stats'), feature=['total_intron_len','n_introns','intron_frac','total_exon_len','intron_lens', 'protein_len']),
+        expand(os.path.join(out_dir, 'all_species', '{class_}_change.tsv'), class_=classes)
 
 for r in workflow.rules:
     r.set_params(queue=config["queue"])

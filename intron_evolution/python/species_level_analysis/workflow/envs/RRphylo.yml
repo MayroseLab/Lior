@@ -1,0 +1,7 @@
+name: RRphylo
+channels:
+  - conda-forge
+dependencies:
+  - r-base
+  - r-phytools
+  - r-ape
