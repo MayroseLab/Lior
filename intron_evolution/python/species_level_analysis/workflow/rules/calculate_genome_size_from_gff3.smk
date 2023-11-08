@@ -17,7 +17,7 @@ rule calculate_genome_size_from_gff3:
         then
             gs="NA"
         else
-            gs=$(echo $seq | awk '{{SUM+=$4}}END{{print SUM}}')
+            gs=$(echo "${{seq}}" | awk '{{SUM+=$4}}END{{print SUM}}')
         fi
         echo -e "{wildcards.species}\t$gs" > {output}
         """
