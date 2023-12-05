@@ -8,7 +8,8 @@ rule remove_alt_splicing:
         os.path.join(out_dir, 'per_species', '{species}', 'annotation.gff3')
     output:
         gff = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.gff3'),
-        tbl = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.gff3.gene_to_mRNA')
+        tbl = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.gff3.gene_to_mRNA'),
+        tbl2 = os.path.join(out_dir, 'per_species', '{species}', 'annotation.canon.gff3.mRNA_to_canon')
     log:
         os.path.join(logs_dir, 'remove_alt_splicing', '{species}.remove_alt_splicing.log')
     conda:
