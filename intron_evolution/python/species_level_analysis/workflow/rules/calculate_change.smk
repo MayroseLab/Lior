@@ -8,7 +8,8 @@ rule calculate_change:
     input:
         config['species_tree'],
         os.path.join(out_dir, 'all_species', 'BUSCO_trees', '{class_}/{BUSCO}.treefile'),
-        os.path.join(out_dir, 'all_species', 'BUSCO_intron_frac.stats'),
+        #os.path.join(out_dir, 'all_species', 'BUSCO_intron_frac.stats'),
+        os.path.join(out_dir, 'all_species', 'BUSCO_total_intron_len.stats')
     output:
         os.path.join(out_dir, 'all_species', 'BUSCO_change/{class_}/{BUSCO}_change.tsv')
     log:
