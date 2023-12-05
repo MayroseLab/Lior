@@ -17,7 +17,7 @@ gene_mrna_out = out_gff + '.gene_to_mRNA'
 mrna_canon_out = out_gff + '.mRNA_to_canon'
 
 db_path = in_gff + '.db'
-#gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
+gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
 gff = gffutils.FeatureDB(db_path)
 
 with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2, open(mrna_canon_out,'w') as fo3:
