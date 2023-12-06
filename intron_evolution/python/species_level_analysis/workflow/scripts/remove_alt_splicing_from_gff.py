@@ -23,7 +23,6 @@ gff = gffutils.FeatureDB(db_path)
 with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2, open(mrna_canon_out,'w') as fo3:
   for feature in gff.all_features():
     if feature.featuretype not in {'gene', 'mRNA', 'exon', 'CDS', 'five_prime_UTR', 'three_prime_UTR'}:
-      print(str(feature), file=fo)
       continue
     if feature.featuretype != 'gene':	# mRNA and exon features
       continue
