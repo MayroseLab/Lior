@@ -37,6 +37,9 @@ for mrna_id in id_dict:
     rec = rec_dict[mrna_id]
   elif mrna_id.split('.')[0] in rec_dict:
     rec = rec_dict[mrna_id.split('.')[0]]
+  elif not mrna_id.endswith('.1') and mrna_id+'.1' in rec_dict:
+    rec = rec_dict[mrna_id+'.1']
+    rec.id = mrna_id
   else:
     continue
   rec.name = ''
