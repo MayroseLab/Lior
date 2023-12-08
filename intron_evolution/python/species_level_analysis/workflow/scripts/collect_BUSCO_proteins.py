@@ -2,6 +2,9 @@
 Given a list of species, collect
 orthologs into FASTA files
 (one file per BUSCO)
+Removes outliers based on
+protein length and total
+intron length MADs.
 """
 
 import sys
@@ -37,7 +40,7 @@ for sp in species_list:
         prot_records[rec_id].id = f'{sp_binom}__{rec_id}'
         prot_records[rec_id].description = ''
     sp_busco_stats = os.path.join(in_dir, sp, 'BUSCO.stats')
-    sp_busco_stats_df = pd.read_csv(sp_busco_stats, sep='\t', usecols=[1,5])
+    sp_busco_stats_df = pd.read_csv(sp_busco_stats, sep='\t', usecols=[1,5,8,12])
     sp_busco_stats_df['species'] = sp_binom
     sp_busco_stats_df['species_full'] = sp
     sp_busco_stats_df['prot_record'] = sp_busco_stats_df['canon_mRNA'].apply(lambda id: prot_records[id] if not pd.isnull(id) else np.nan)
@@ -61,10 +64,10 @@ def mad_outliers(s):
 
 def create_BUSCO_fasta(busco_id):
     busco_id_df = busco_prot_df.query('Busco_id == @busco_id').dropna()
-    busco_id_prot_records = busco_id_df['prot_record'].to_list()
-    busco_id_prot_lens = pd.Series([len(rec) for rec in busco_id_prot_records])
-    mad_min, mad_max = mad_outliers(busco_id_prot_lens)
-    busco_id_prot_records_mad = [rec for rec in busco_id_prot_records if len(rec) > mad_min and len(rec) < mad_max]
+    prot_len_mad_min, prot_len_mad_max = mad_outliers(busco_id_df['Protein_length'])
+    intron_len_mad_min, intron_len_mad_max = mad_outliers(busco_id_df['tot_intron_len'])
+    busco_id_df = busco_id_df.query('Protein_length > @prot_len_mad_min & Protein_length < @prot_len_mad_max & tot_intron_len > @intron_len_mad_min & tot_intron_len < @intron_len_mad_max')
+    busco_id_prot_records_mad = busco_id_df['prot_record'].to_list()
     busco_id_fasta = os.path.join(out_dir, busco_id + '.faa')
     if len(busco_id_prot_records_mad) < MIN_SIZE:
         busco_id_prot_records_mad = []
