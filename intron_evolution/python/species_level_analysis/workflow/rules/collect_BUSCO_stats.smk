@@ -12,7 +12,8 @@ rule collect_BUSCO_stats:
         os.path.join(out_dir, 'all_species', 'BUSCO_intron_frac.stats'),
         os.path.join(out_dir, 'all_species', 'BUSCO_total_exon_len.stats'),
         os.path.join(out_dir, 'all_species', 'BUSCO_intron_lens.stats'),
-        os.path.join(out_dir, 'all_species', 'BUSCO_protein_len.stats')
+        os.path.join(out_dir, 'all_species', 'BUSCO_protein_len.stats'),
+        os.path.join(out_dir, 'all_species', 'BUSCO_transcript_id.stats')
     log:
         os.path.join(logs_dir, 'collect_BUSCO_stats', 'all_species.collect_BUSCO_stats.log')
     run:
@@ -40,3 +41,5 @@ rule collect_BUSCO_stats:
         intron_lens_df.to_csv(output[4], sep='\t')
         protein_len_df = create_busco_matrix('Protein_length')
         protein_len_df.to_csv(output[5], sep='\t')
+        transcript_id_df = create_busco_matrix('canon_mRNA')
+        transcript_id_df.to_csv(output[6], sep='\t')
