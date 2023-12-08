@@ -8,7 +8,7 @@ rule collect_change_stats:
     log:
         os.path.join(logs_dir, 'collect_change_stats', '{class_}.collect_change_stats.log')
     resources:
-        mem_mb = 2000
+        mem_mb = 8000
     shell:
         """
         header=$(head -1 {input[0]})
