@@ -46,6 +46,10 @@ for sp in species_list:
     sp_busco_stats_df['prot_record'] = sp_busco_stats_df['canon_mRNA'].apply(lambda id: prot_records[id] if not pd.isnull(id) else np.nan)
     busco_prot.append(sp_busco_stats_df)
 busco_prot_df = pd.concat(busco_prot)
+# write table to file - for debugging
+out_tsv = os.path.join(out_dir, 'BUSCO_stats.tsv')
+out_cols = busco_prot_df.columns[:-1]
+busco_prot_df[out_cols].to_csv(out_tsv, sep='\t')
 
 # Extract proteins per BUSCO
 
@@ -58,8 +62,10 @@ def mad(s):
 def mad_outliers(s):
     smed = s.median()
     smad = mad(s)
-    lower = smed - 3*smad
-    upper = smed + 3*smad
+    smed10 = 0.1*smed
+    x = max(smed10, 3*smad)
+    lower = smed - x
+    upper = smed + x
     return lower, upper
 
 def create_BUSCO_fasta(busco_id):
