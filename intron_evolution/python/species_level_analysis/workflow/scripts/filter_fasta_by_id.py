@@ -12,6 +12,7 @@ for record name replacement.
 
 from Bio import SeqIO
 import sys
+import re
 
 # if ids file given
 if len(sys.argv) == 3:
@@ -30,18 +31,26 @@ for l in inp:
   else:
     id_dict[fields[0]] = fields[1]
 
-
 rec_dict = SeqIO.to_dict(SeqIO.parse(sys.argv[1], 'fasta'))
+dot_regex = re.compile('.+\.\d+$')
+rec_dict_nodot = {rec_id.split('.')[0] : rec_dict[rec_id] for rec_id in rec_dict}
+valid_nodot = (len(rec_dict) == len(rec_dict_nodot))
+c = 0
 for mrna_id in id_dict:
   if mrna_id in rec_dict:
     rec = rec_dict[mrna_id]
   elif mrna_id.split('.')[0] in rec_dict:
     rec = rec_dict[mrna_id.split('.')[0]]
-  elif not mrna_id.endswith('.1') and mrna_id+'.1' in rec_dict:
-    rec = rec_dict[mrna_id+'.1']
+  elif not dot_regex.match(mrna_id) and valid_nodot and mrna_id in rec_dict_nodot:
+    rec = rec_dict_nodot[mrna_id]
     rec.id = mrna_id
   else:
     continue
   rec.name = ''
   rec.description = ''
   print(rec.format('fasta').strip())
+  c += 1
+
+if c != len(id_dict):
+  sys.exit(1)
+  print(f'Something went wrong: {len(id_dict)} transcript IDs provided, but {c} records written.')
