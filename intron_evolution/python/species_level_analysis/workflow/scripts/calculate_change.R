@@ -41,7 +41,7 @@ change_on_branch = function(row){
     else{
         child_val = species_vals[child]
     }
-    abs_change = abs(parent_val - child_val)
+    abs_change = abs(parent_val - child_val)/parent_val
     return(abs_change)
 }
 
